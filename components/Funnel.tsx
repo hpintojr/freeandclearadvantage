@@ -47,7 +47,7 @@ export default function Funnel() {
     if (step === 6 && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) return setError("Enter a valid email address."), false;
     if (step === 7 && (!form.address.trim() || !/^\d{5}(-\d{4})?$/.test(form.zip))) return setError("Enter your address and a valid ZIP code."), false;
     if (step === 8 && !form.dob) return setError("Enter your date of birth."), false;
-    if (step === 9 && (!form.phone.trim() || !form.tcpaConsent)) return setError("Enter your phone number and provide consent to continue."), false;
+    if (step === 9 && !form.phone.trim()) return setError("Enter your phone number."), false;
     return true;
   }
 
@@ -148,7 +148,8 @@ export default function Funnel() {
           {step === 9 && <>
             <p className="eyebrow">Final step</p><h1>What’s your phone number?</h1><p className="subtitle">Use the number where you want us to reach you.</p>
             <label>Mobile phone<input type="tel" autoComplete="tel" value={form.phone} onChange={(e)=>set("phone",e.target.value)} placeholder="(555) 555-5555" /></label>
-            <label className="consent-box"><input type="checkbox" checked={form.tcpaConsent} onChange={(e)=>set("tcpaConsent",e.target.checked)} /><span>By checking this box and selecting “See My Options,” I provide my electronic signature and agree that Free & Clear Advantage may call or text me at the number I provided about my request, including using automated technology, prerecorded or artificial voice, and/or AI. Consent is not a condition of purchase. Message and data rates may apply. I can revoke consent at any time and can reply STOP to text messages. I agree to the <a href="/terms" target="_blank">Terms of Use</a> and <a href="/privacy" target="_blank">Privacy Policy</a>.</span></label>
+            <label className="consent-box"><input type="checkbox" checked={form.tcpaConsent} onChange={(e)=>set("tcpaConsent",e.target.checked)} /><span><strong>Optional contact consent:</strong> By checking this box, I provide my electronic signature and agree that Free & Clear Advantage may call or text me at the number I provided about my request, including using automated technology, prerecorded or artificial voice, and/or AI. Consent is not required to submit this form or obtain information. Message and data rates may apply. I can revoke consent at any time and can reply STOP to text messages.</span></label>
+            <p className="microcopy">By selecting “See My Options,” you acknowledge our <a href="/terms" target="_blank">Terms of Use</a> and <a href="/privacy" target="_blank">Privacy Policy</a>. If you do not check the optional contact-consent box, do not place automated or prerecorded marketing calls or texts to this number based on this submission.</p>
           </>}
 
           {error && <div className="error" role="alert">{error}</div>}
