@@ -11,7 +11,7 @@ function headers(version: string) {
   };
 }
 
-function customFields(lead: LeadPayload, consentTimestamp: string) {
+function customFields(lead: LeadPayload, consentTimestamp: string, consentVersion: string) {
   const fields: { id: string; fieldValue: string }[] = [];
   const add = (id: string | undefined, value: string | number | boolean) => {
     if (id) fields.push({ id, fieldValue: String(value) });
@@ -22,15 +22,21 @@ function customFields(lead: LeadPayload, consentTimestamp: string) {
   add(process.env.GHL_CF_PAYMENT_STATUS, lead.paymentStatus);
   add(process.env.GHL_CF_CONSENT, lead.tcpaConsent);
   add(process.env.GHL_CF_CONSENT_TIMESTAMP, consentTimestamp);
+  add(process.env.GHL_CF_CONSENT_VERSION, consentVersion);
   return fields;
 }
 
-export async function sendLeadToGhl(lead: LeadPayload, consentTimestamp: string) {
+export async function sendLeadToGhl(lead: LeadPayload, consentTimestamp: string, consentVersion: string) {
   if (process.env.GHL_INBOUND_WEBHOOK_URL) {
     const response = await fetch(process.env.GHL_INBOUND_WEBHOOK_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ...lead, consentTimestamp, source: lead.source || "Free & Clear Advantage Web Funnel" }),
+      body: JSON.stringify({
+        ...lead,
+        consentTimestamp,
+        consentVersion,
+        source: lead.source || "Free & Clear Advantage Web Funnel",
+      }),
       cache: "no-store",
     });
     if (!response.ok) throw new Error(`GHL webhook failed: ${response.status}`);
@@ -55,7 +61,7 @@ export async function sendLeadToGhl(lead: LeadPayload, consentTimestamp: string)
       dateOfBirth: lead.dob,
       ...(lead.tcpaConsent ? {} : { dnd: true }),
       source: lead.source || "Free & Clear Advantage Web Funnel",
-      customFields: customFields(lead, consentTimestamp),
+      customFields: customFields(lead, consentTimestamp, consentVersion),
     }),
     cache: "no-store",
   });
