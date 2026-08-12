@@ -1,7 +1,7 @@
 import type { LeadPayload } from "../types";
 
 const DEFAULT_INSTANCE_URL = "https://customer-ruby-1712.my.salesforce.com";
-const DEFAULT_SOURCE = "Website";
+const DEFAULT_SOURCE = "F&C-Website";
 
 type SalesforceTokenResponse = {
   access_token?: string;
@@ -95,7 +95,9 @@ export async function sendLeadToSalesforce(
   const auth = await getSalesforceAccessToken();
   if (!auth) return null;
 
-  const source = (process.env.SALESFORCE_SOURCE_NAME || DEFAULT_SOURCE).trim();
+  const configuredSource = (process.env.SALESFORCE_SOURCE_NAME || DEFAULT_SOURCE).trim();
+  // Migrate the original production value without requiring an immediate Vercel env change.
+  const source = configuredSource === "Website" ? DEFAULT_SOURCE : configuredSource;
   const endpoint = `${auth.instanceUrl}/services/apexrest/api/leads/${encodeURIComponent(source)}`;
 
   const payload = {
