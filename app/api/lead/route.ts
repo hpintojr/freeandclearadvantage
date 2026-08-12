@@ -13,7 +13,10 @@ export async function POST(request: Request) {
 
   const consentTimestamp = new Date().toISOString();
   const hasGhl = Boolean(process.env.GHL_INBOUND_WEBHOOK_URL || (process.env.GHL_ACCESS_TOKEN && process.env.GHL_LOCATION_ID));
-  const hasSf = Boolean(process.env.SALESFORCE_WEBHOOK_URL || (process.env.SALESFORCE_INSTANCE_URL && process.env.SALESFORCE_ACCESS_TOKEN));
+  const hasSf = Boolean(
+    process.env.SALESFORCE_WEBHOOK_URL ||
+      (process.env.SALESFORCE_CLIENT_ID && process.env.SALESFORCE_CLIENT_SECRET),
+  );
 
   if (!hasGhl && !hasSf) {
     return NextResponse.json({
