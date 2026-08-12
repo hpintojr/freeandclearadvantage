@@ -32,9 +32,9 @@ Custom CRM fields are environment-configurable. Verify all HighLevel custom-fiel
 
 The custom results-page calendar reads live availability from the HighLevel calendar API and creates the appointment back in HighLevel when credentials are present.
 
-For the requested five-booking capacity, configure the HighLevel calendar as **Round Robin**, set appointment duration to **60 minutes**, and set **Appointments Per Slot to 5**. Add enough eligible team members to staff the five concurrent consultations you want available at each time. The site reflects the live free slots returned by HighLevel rather than maintaining a second calendar database.
+For a hard cap of **five simultaneous bookings per time slot**, configure one HighLevel **Round Robin** calendar with exactly **five eligible team members**, appointment duration **60 minutes**, slot interval **60 minutes**, and **Appointments Per Slot = 1 per team member**. HighLevel can then assign each booking to an available member, so the slot closes when all five assigned members are occupied. Do not set Appointments Per Slot to 5 on each user if the intent is five total concurrent appointments.
 
-The default visual schedule uses one-hour windows inside the requested 9:30 AM–5:00 PM Pacific range. Because a strict sequence of non-overlapping one-hour sessions cannot both begin at 9:30 AM and end exactly at 5:00 PM without either a gap or overlap, the preview uses 9:30, 10:30, 11:30, 12:30, 1:30, 2:30, and 4:00. Once HighLevel is connected, its actual calendar availability is the source of truth.
+The default visual schedule uses one-hour windows inside the requested 9:30 AM–5:00 PM Pacific range. Because that window is 7.5 hours, a strict sequence of non-overlapping one-hour sessions cannot both begin at 9:30 AM and end exactly at 5:00 PM without either a gap or overlap. The preview uses 9:30, 10:30, 11:30, 12:30, 1:30, 2:30, and 4:00. Once HighLevel is connected, its actual calendar availability is the source of truth.
 
 ## Compliance / legal review before launch
 
