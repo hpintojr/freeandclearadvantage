@@ -9,4 +9,4 @@ export const siteConfig = {
     process.env.NEXT_PUBLIC_PRIVACY_EMAIL || "privacy@freeandclearadvantage.com",
 };
 
-export const consentVersion = "2026-08-12-v1";
+export const consentVersion = "2026-08-12-v2-optional-contact-consent";
