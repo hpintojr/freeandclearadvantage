@@ -29,7 +29,7 @@ async function AsyncResults({ searchParams }: { searchParams: Promise<Record<str
       </div>
 
       <div className="booking-section">
-        <p className="eyebrow">Prefer a scheduled time?</p><h2>Book a one-hour consultation</h2><p>Appointments are offered between 9:30 AM and 5:00 PM Pacific. Live availability is pulled from our HighLevel round-robin calendar when connected.</p>
+        <p className="eyebrow">Prefer a scheduled time?</p><h2>Book a one-hour consultation</h2><p>One-hour consultations are offered with start times every 30 minutes beginning at 9:00 AM Pacific. The final start time is 4:30 PM, ending at 5:30 PM. Live availability is pulled from our HighLevel round-robin calendar when connected.</p>
         {(demo || !contactId) && <div className="demo-note">Preview mode: a live HighLevel contact/calendar connection is not available yet, so the calendar below shows sample availability.</div>}
         <BookingCalendar contactId={contactId} firstName={firstName} demoMode={demo || !contactId} />
       </div>
