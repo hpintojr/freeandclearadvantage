@@ -1,6 +1,6 @@
 import type { LeadPayload } from "../types";
 
-export async function sendLeadToSalesforce(lead: LeadPayload, consentTimestamp: string) {
+export async function sendLeadToSalesforce(lead: LeadPayload, consentTimestamp: string, consentVersion: string) {
   if (process.env.SALESFORCE_WEBHOOK_URL) {
     const response = await fetch(process.env.SALESFORCE_WEBHOOK_URL, {
       method: "POST",
@@ -8,6 +8,7 @@ export async function sendLeadToSalesforce(lead: LeadPayload, consentTimestamp: 
       body: JSON.stringify({
         ...lead,
         consentTimestamp,
+        consentVersion,
         source: lead.source || "Free & Clear Advantage Web Funnel",
       }),
       cache: "no-store",
@@ -28,6 +29,8 @@ export async function sendLeadToSalesforce(lead: LeadPayload, consentTimestamp: 
     State: lead.state,
     PostalCode: lead.zip,
     LeadSource: "Web",
+    DoNotCall: !lead.tcpaConsent,
+    Description: `Free & Clear Advantage web request. Automated/prerecorded contact consent: ${lead.tcpaConsent ? "YES" : "NO"}. Submission/consent-decision timestamp: ${consentTimestamp}. Disclosure version: ${consentVersion}.`,
   };
 
   const addCustom = (envName: string, value: unknown) => {
@@ -42,6 +45,7 @@ export async function sendLeadToSalesforce(lead: LeadPayload, consentTimestamp: 
   addCustom("SALESFORCE_FIELD_PAYMENT_STATUS", lead.paymentStatus);
   addCustom("SALESFORCE_FIELD_CONSENT", lead.tcpaConsent);
   addCustom("SALESFORCE_FIELD_CONSENT_TIMESTAMP", consentTimestamp);
+  addCustom("SALESFORCE_FIELD_CONSENT_VERSION", consentVersion);
 
   const instance = process.env.SALESFORCE_INSTANCE_URL.replace(/\/$/, "");
   const apiVersion = process.env.SALESFORCE_API_VERSION || "v67.0";
