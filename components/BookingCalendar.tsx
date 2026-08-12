@@ -36,7 +36,13 @@ export default function BookingCalendar({ contactId, firstName, demoMode }: { co
   }
 
   async function book(startTime: string) {
-    setBooking(startTime); setMessage("");
+    setMessage("");
+    if (!contactId) {
+      setMessage("This is sample availability. Connect the HighLevel location, contact integration, and round-robin calendar to create live appointments.");
+      return;
+    }
+
+    setBooking(startTime);
     try {
       const normalized = startTime.includes("Z") || /[+-]\d\d:\d\d$/.test(startTime) ? new Date(startTime).toISOString() : new Date(`${startTime}-07:00`).toISOString();
       const response = await fetch("/api/booking", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ contactId, startTime: normalized, name: firstName }) });
