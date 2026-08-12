@@ -20,7 +20,23 @@ async function AsyncResults({ searchParams }: { searchParams: Promise<Record<str
       <h1>Good news, {firstName} — based on your answers, you may qualify.</h1>
       <p className="results-subtitle">A specialist can review your information, explain which options may be available, and answer your questions. Nothing is automatic and there is no obligation to enroll.</p>
       {debt ? <div className="result-pill">Estimated debt: ${debt.toLocaleString()}</div> : null}
-      <a className="call-cta" href={`tel:${siteConfig.callPhoneE164}`}>☎ Call Now — {siteConfig.callPhone}</a>
+      <a className="call-cta" href={`tel:${siteConfig.callPhoneE164}`} aria-label={`Call ${siteConfig.callPhone}`}>
+        <svg
+          viewBox="0 0 24 24"
+          width="22"
+          height="22"
+          aria-hidden="true"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2.2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          style={{ marginRight: ".55rem", flex: "0 0 auto" }}
+        >
+          <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.12.9.33 1.78.62 2.62a2 2 0 0 1-.45 2.11L8 9.88a16 16 0 0 0 6.12 6.12l1.43-1.23a2 2 0 0 1 2.11-.45c.84.29 1.72.5 2.62.62A2 2 0 0 1 22 16.92z" />
+        </svg>
+        <span>Call Now — {siteConfig.callPhone}</span>
+      </a>
       <p className="microcopy center">The initial consultation is free. Program costs, if any, are disclosed by the provider before enrollment.</p>
 
       <div className="result-grid">
@@ -29,7 +45,7 @@ async function AsyncResults({ searchParams }: { searchParams: Promise<Record<str
       </div>
 
       <div className="booking-section">
-        <p className="eyebrow">Prefer a scheduled time?</p><h2>Book a one-hour consultation</h2><p>One-hour consultations are offered with start times every 30 minutes beginning at 9:00 AM Pacific. The final start time is 4:30 PM, ending at 5:30 PM. Live availability is pulled from our HighLevel round-robin calendar when connected.</p>
+        <p className="eyebrow">Prefer a scheduled time?</p><h2>Book a one-hour consultation</h2><p>One-hour consultations are offered with start times every 30 minutes beginning at 9:00 AM Pacific. The final available start time is 5:30 PM, ending at 6:30 PM. Live availability is pulled from our HighLevel round-robin calendar when connected.</p>
         {(demo || !contactId) && <div className="demo-note">Preview mode: a live HighLevel contact/calendar connection is not available yet, so the calendar below shows sample availability.</div>}
         <BookingCalendar contactId={contactId} firstName={firstName} demoMode={demo || !contactId} />
       </div>
