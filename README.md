@@ -23,18 +23,20 @@ The result page deliberately says **“based on your answers, you may qualify”
 `POST /api/lead` can send the same lead to HighLevel, Salesforce, or both.
 
 - HighLevel: native API with `GHL_ACCESS_TOKEN` + `GHL_LOCATION_ID`, or a workflow webhook using `GHL_INBOUND_WEBHOOK_URL`.
-- Salesforce: native REST Lead creation using `SALESFORCE_INSTANCE_URL` + `SALESFORCE_ACCESS_TOKEN`, or a Salesforce Flow/webhook using `SALESFORCE_WEBHOOK_URL`.
+- Salesforce: native REST Lead creation using the configured Salesforce integration.
 - If no CRM credentials are present, the site runs in preview/demo mode and does not persist the lead.
 
-Custom CRM fields are environment-configurable. Verify all HighLevel custom-field IDs and Salesforce API field names before production. The form records the consumer’s contact-consent choice, timestamp, and disclosure version when the corresponding CRM fields are configured. If the optional contact-consent box is not selected, the native HighLevel integration sets DND and the native Salesforce integration sets `DoNotCall`.
+Custom CRM fields are environment-configurable. Verify all HighLevel custom-field IDs before production. The form records the consumer’s contact-consent choice, timestamp, and disclosure version when the corresponding CRM fields are configured. If the optional contact-consent box is not selected, the native HighLevel integration sets DND.
 
 ## Booking / HighLevel round robin
 
 The custom results-page calendar reads live availability from the HighLevel calendar API and creates the appointment back in HighLevel when credentials are present.
 
-For a hard cap of **five simultaneous bookings per time slot**, configure one HighLevel **Round Robin** calendar with exactly **five eligible team members**, appointment duration **60 minutes**, slot interval **60 minutes**, and **Appointments Per Slot = 1 per team member**. HighLevel can then assign each booking to an available member, so the slot closes when all five assigned members are occupied. Do not set Appointments Per Slot to 5 on each user if the intent is five total concurrent appointments.
+Booking hours are **9:00 AM through 5:30 PM Pacific**, with **60-minute consultations** and **30-minute start intervals**. Valid start times therefore run from **9:00 AM through 4:30 PM** so the final one-hour appointment ends at 5:30 PM.
 
-The default visual schedule uses one-hour windows inside the requested 9:30 AM–5:00 PM Pacific range. Because that window is 7.5 hours, a strict sequence of non-overlapping one-hour sessions cannot both begin at 9:30 AM and end exactly at 5:00 PM without either a gap or overlap. The preview uses 9:30, 10:30, 11:30, 12:30, 1:30, 2:30, and 4:00. Once HighLevel is connected, its actual calendar availability is the source of truth.
+For a hard cap of **five simultaneous active consultations**, configure one HighLevel **Round Robin** calendar with exactly **five eligible team members**, appointment duration **60 minutes**, slot interval **30 minutes**, and **Appointments Per Slot = 1 per team member**. Because appointments last one hour while starts are offered every 30 minutes, HighLevel availability must remain the source of truth: if all five team members are occupied by earlier appointments, the overlapping half-hour start should not be shown as available. Do not set Appointments Per Slot to 5 on each user if the intent is five total simultaneous consultations.
+
+The preview schedule uses 9:00, 9:30, 10:00, 10:30, 11:00, 11:30, 12:00, 12:30, 1:00, 1:30, 2:00, 2:30, 3:00, 3:30, 4:00, and 4:30 PM. Once HighLevel is connected, its actual calendar availability is the source of truth.
 
 ## Compliance / legal review before launch
 
