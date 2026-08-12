@@ -32,13 +32,13 @@ Custom CRM fields are environment-configurable. Verify all HighLevel custom-fiel
 
 The custom results-page calendar reads live availability from the HighLevel calendar API and creates the appointment back in HighLevel when credentials are present.
 
-For the requested five-booking capacity, configure the HighLevel calendar as **Round Robin** with five eligible team members, each available for one appointment at a time. Keep appointment duration at 60 minutes. The site will then reflect the live free slots returned by HighLevel rather than maintaining a second calendar database.
+For the requested five-booking capacity, configure the HighLevel calendar as **Round Robin**, set appointment duration to **60 minutes**, and set **Appointments Per Slot to 5**. Add enough eligible team members to staff the five concurrent consultations you want available at each time. The site reflects the live free slots returned by HighLevel rather than maintaining a second calendar database.
 
-The default visual schedule uses one-hour windows inside the requested 9:30 AM–5:00 PM Pacific range. Because a strict sequence of one-hour sessions cannot both begin at 9:30 AM and end exactly at 5:00 PM without either a gap or overlap, the preview uses 9:30, 10:30, 11:30, 12:30, 1:30, 2:30, and 4:00. Once HighLevel is connected, its actual calendar availability is the source of truth.
+The default visual schedule uses one-hour windows inside the requested 9:30 AM–5:00 PM Pacific range. Because a strict sequence of non-overlapping one-hour sessions cannot both begin at 9:30 AM and end exactly at 5:00 PM without either a gap or overlap, the preview uses 9:30, 10:30, 11:30, 12:30, 1:30, 2:30, and 4:00. Once HighLevel is connected, its actual calendar availability is the source of truth.
 
 ## Compliance / legal review before launch
 
-The repository includes original draft Privacy Policy, Terms of Use, Privacy Choices page, footer disclosures, and phone-step consent language. They are not copied from Forbes Advisor or another advertiser.
+The repository includes original draft Privacy Policy, Notice at Collection, Terms of Use, Privacy Choices page, footer disclosures, and phone-step consent language. They are not copied from Forbes Advisor or another advertiser.
 
 Before production, confirm with counsel:
 
