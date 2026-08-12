@@ -5,7 +5,11 @@ export async function sendLeadToSalesforce(lead: LeadPayload, consentTimestamp: 
     const response = await fetch(process.env.SALESFORCE_WEBHOOK_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ...lead, consentTimestamp, source: lead.source || "Free & Clear Advantage Web Funnel" }),
+      body: JSON.stringify({
+        ...lead,
+        consentTimestamp,
+        source: lead.source || "Free & Clear Advantage Web Funnel",
+      }),
       cache: "no-store",
     });
     if (!response.ok) throw new Error(`Salesforce webhook failed: ${response.status}`);
@@ -14,7 +18,6 @@ export async function sendLeadToSalesforce(lead: LeadPayload, consentTimestamp: 
 
   if (!process.env.SALESFORCE_INSTANCE_URL || !process.env.SALESFORCE_ACCESS_TOKEN) return null;
 
-  const field = (name: string, fallback: string) => process.env[name] || fallback;
   const body: Record<string, unknown> = {
     FirstName: lead.firstName,
     LastName: lead.lastName,
@@ -25,14 +28,20 @@ export async function sendLeadToSalesforce(lead: LeadPayload, consentTimestamp: 
     State: lead.state,
     PostalCode: lead.zip,
     LeadSource: "Web",
-    Birthdate__c: lead.dob,
-    [field("SALESFORCE_FIELD_DEBT_AMOUNT", "Debt_Amount__c")]: lead.debtAmount,
-    [field("SALESFORCE_FIELD_DEBT_TYPES", "Debt_Types__c")]: lead.debtTypes.join(";"),
-    [field("SALESFORCE_FIELD_EMPLOYMENT", "Employment_Status__c")]: lead.employment,
-    [field("SALESFORCE_FIELD_PAYMENT_STATUS", "Payment_Status__c")]: lead.paymentStatus,
-    [field("SALESFORCE_FIELD_CONSENT", "TCPA_Consent__c")]: lead.tcpaConsent,
-    [field("SALESFORCE_FIELD_CONSENT_TIMESTAMP", "TCPA_Consent_Timestamp__c")]: consentTimestamp,
   };
+
+  const addCustom = (envName: string, value: unknown) => {
+    const apiName = process.env[envName]?.trim();
+    if (apiName) body[apiName] = value;
+  };
+
+  addCustom("SALESFORCE_FIELD_DOB", lead.dob);
+  addCustom("SALESFORCE_FIELD_DEBT_AMOUNT", lead.debtAmount);
+  addCustom("SALESFORCE_FIELD_DEBT_TYPES", lead.debtTypes.join(";"));
+  addCustom("SALESFORCE_FIELD_EMPLOYMENT", lead.employment);
+  addCustom("SALESFORCE_FIELD_PAYMENT_STATUS", lead.paymentStatus);
+  addCustom("SALESFORCE_FIELD_CONSENT", lead.tcpaConsent);
+  addCustom("SALESFORCE_FIELD_CONSENT_TIMESTAMP", consentTimestamp);
 
   const instance = process.env.SALESFORCE_INSTANCE_URL.replace(/\/$/, "");
   const apiVersion = process.env.SALESFORCE_API_VERSION || "v67.0";
