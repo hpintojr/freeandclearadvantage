@@ -1,0 +1,56 @@
+import type { LeadPayload } from "../types";
+
+export async function sendLeadToSalesforce(lead: LeadPayload, consentTimestamp: string) {
+  if (process.env.SALESFORCE_WEBHOOK_URL) {
+    const response = await fetch(process.env.SALESFORCE_WEBHOOK_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ...lead, consentTimestamp, source: lead.source || "Free & Clear Advantage Web Funnel" }),
+      cache: "no-store",
+    });
+    if (!response.ok) throw new Error(`Salesforce webhook failed: ${response.status}`);
+    return { leadId: undefined };
+  }
+
+  if (!process.env.SALESFORCE_INSTANCE_URL || !process.env.SALESFORCE_ACCESS_TOKEN) return null;
+
+  const field = (name: string, fallback: string) => process.env[name] || fallback;
+  const body: Record<string, unknown> = {
+    FirstName: lead.firstName,
+    LastName: lead.lastName,
+    Company: "Consumer Lead",
+    Email: lead.email,
+    Phone: lead.phone,
+    Street: lead.address,
+    State: lead.state,
+    PostalCode: lead.zip,
+    LeadSource: "Web",
+    Birthdate__c: lead.dob,
+    [field("SALESFORCE_FIELD_DEBT_AMOUNT", "Debt_Amount__c")]: lead.debtAmount,
+    [field("SALESFORCE_FIELD_DEBT_TYPES", "Debt_Types__c")]: lead.debtTypes.join(";"),
+    [field("SALESFORCE_FIELD_EMPLOYMENT", "Employment_Status__c")]: lead.employment,
+    [field("SALESFORCE_FIELD_PAYMENT_STATUS", "Payment_Status__c")]: lead.paymentStatus,
+    [field("SALESFORCE_FIELD_CONSENT", "TCPA_Consent__c")]: lead.tcpaConsent,
+    [field("SALESFORCE_FIELD_CONSENT_TIMESTAMP", "TCPA_Consent_Timestamp__c")]: consentTimestamp,
+  };
+
+  const instance = process.env.SALESFORCE_INSTANCE_URL.replace(/\/$/, "");
+  const apiVersion = process.env.SALESFORCE_API_VERSION || "v67.0";
+  const response = await fetch(`${instance}/services/data/${apiVersion}/sobjects/Lead`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${process.env.SALESFORCE_ACCESS_TOKEN}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(body),
+    cache: "no-store",
+  });
+
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(`Salesforce lead create failed: ${response.status} ${text.slice(0, 300)}`);
+  }
+
+  const json = (await response.json()) as { id?: string };
+  return { leadId: json.id };
+}
