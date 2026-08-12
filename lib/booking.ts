@@ -15,6 +15,8 @@ export const defaultSlotStarts = [
   "15:30",
   "16:00",
   "16:30",
+  "17:00",
+  "17:30",
 ];
 export const slotDurationMinutes = 60;
 export const slotIntervalMinutes = 30;
