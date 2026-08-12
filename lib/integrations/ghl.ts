@@ -54,7 +54,6 @@ export async function sendLeadToGhl(lead: LeadPayload, consentTimestamp: string)
       postalCode: lead.zip,
       dateOfBirth: lead.dob,
       source: lead.source || "Free & Clear Advantage Web Funnel",
-      tags: ["free-clear-web-lead"],
       customFields: customFields(lead, consentTimestamp),
     }),
     cache: "no-store",
