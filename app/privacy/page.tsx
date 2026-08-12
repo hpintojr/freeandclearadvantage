@@ -1,0 +1,17 @@
+import { siteConfig } from "@/lib/config";
+
+export default function PrivacyPage() {
+  return <article className="legal-page">
+    <p className="eyebrow">Legal</p><h1>Privacy Policy</h1><p className="updated">Draft for launch review • August 12, 2026</p>
+    <h2>What we collect</h2><p>When you use our eligibility form, we may collect identifiers and contact information such as your name, email address, phone number, mailing address, ZIP code, date of birth, state, and information you choose to provide about your debt, employment, and payment status. We also may collect technical information such as IP address, browser/device information, referring page, and campaign parameters.</p>
+    <h2>How we use information</h2><p>We use information to process your request, determine which services or providers may be relevant, contact you as requested, schedule appointments, maintain records of your consent, prevent fraud or abuse, operate and improve the site, and comply with law.</p>
+    <h2>CRM and service providers</h2><p>We may transmit information to customer-relationship-management and technology providers that process information for us, including systems such as HighLevel and Salesforce when configured. Those systems are used to manage leads, communications, scheduling, and follow-up. We also may disclose information to a participating debt-relief provider when necessary to respond to your request and when permitted by applicable law and your consent.</p>
+    <h2>Calls and text messages</h2><p>If you provide the consent requested on our form, we may use the phone number you provide to contact you about your request. Your consent record may include the disclosure shown to you, the time of consent, the submitted phone number, and related request information. You may revoke consent as described in the communication or by contacting us.</p>
+    <h2>Cookies and analytics</h2><p>We may use first-party cookies and similar technologies needed for site operation, security, analytics, and advertising measurement. Where applicable, we will provide controls required by law for sale, sharing, targeted advertising, or use of sensitive personal information.</p>
+    <h2>Retention and security</h2><p>We retain information for as long as reasonably necessary for the purposes described above, including legal, compliance, dispute, and consent-recordkeeping needs. We use administrative, technical, and organizational safeguards designed to protect information, but no transmission or storage system is guaranteed to be completely secure.</p>
+    <h2>Your privacy choices</h2><p>Depending on where you live, you may have rights to request access, correction, deletion, portability, or to opt out of certain uses or disclosures. Visit our Privacy Choices page or contact <a href={`mailto:${siteConfig.privacyEmail}`}>{siteConfig.privacyEmail}</a>.</p>
+    <h2>Children</h2><p>This site is intended for adults. We do not knowingly collect information through this form from anyone under 18.</p>
+    <h2>Changes</h2><p>We may update this policy from time to time. The updated date above will reflect the most recent revision.</p>
+    <div className="legal-note"><strong>Launch requirement:</strong> This policy is a site-specific draft, not legal advice. Before production, counsel should confirm the exact legal entity name, business address, service-provider/partner disclosures, state-specific requirements, retention period, cookie/analytics stack, and the privacy-rights process.</div>
+  </article>;
+}
