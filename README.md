@@ -32,11 +32,11 @@ Custom CRM fields are environment-configurable. Verify all HighLevel custom-fiel
 
 The custom results-page calendar reads live availability from the HighLevel calendar API and creates the appointment back in HighLevel when credentials are present.
 
-Booking hours are **9:00 AM through 5:30 PM Pacific**, with **60-minute consultations** and **30-minute start intervals**. Valid start times therefore run from **9:00 AM through 4:30 PM** so the final one-hour appointment ends at 5:30 PM.
+Booking start times are **9:00 AM through 5:30 PM Pacific**, with **60-minute consultations** and **30-minute start intervals**. The final 5:30 PM appointment ends at 6:30 PM.
 
 For a hard cap of **five simultaneous active consultations**, configure one HighLevel **Round Robin** calendar with exactly **five eligible team members**, appointment duration **60 minutes**, slot interval **30 minutes**, and **Appointments Per Slot = 1 per team member**. Because appointments last one hour while starts are offered every 30 minutes, HighLevel availability must remain the source of truth: if all five team members are occupied by earlier appointments, the overlapping half-hour start should not be shown as available. Do not set Appointments Per Slot to 5 on each user if the intent is five total simultaneous consultations.
 
-The preview schedule uses 9:00, 9:30, 10:00, 10:30, 11:00, 11:30, 12:00, 12:30, 1:00, 1:30, 2:00, 2:30, 3:00, 3:30, 4:00, and 4:30 PM. Once HighLevel is connected, its actual calendar availability is the source of truth.
+The preview schedule uses 9:00, 9:30, 10:00, 10:30, 11:00, 11:30, 12:00, 12:30, 1:00, 1:30, 2:00, 2:30, 3:00, 3:30, 4:00, 4:30, 5:00, and 5:30 PM. Once HighLevel is connected, its actual calendar availability is the source of truth.
 
 ## Compliance / legal review before launch
 
