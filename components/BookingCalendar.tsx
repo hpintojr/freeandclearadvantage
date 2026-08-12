@@ -52,6 +52,6 @@ export default function BookingCalendar({ contactId, firstName, demoMode }: { co
     <div className="date-row">{dates.map((date) => <button key={date} className={date===selectedDate?"date-chip active":"date-chip"} onClick={() => setSelectedDate(date)}>{labelDate(date)}</button>)}</div>
     {daySlots.length ? <div className="slot-grid">{daySlots.map((slot) => <button key={slot} className="time-slot" disabled={booking===slot} onClick={() => book(slot)}>{booking===slot?"Booking…":labelTime(slot)}</button>)}</div> : <p>No times are available on this date. Please choose another day or call us.</p>}
     {message && <div className="booking-message">{message}</div>}
-    <p className="microcopy center">A HighLevel round-robin calendar with five available team members can provide up to five simultaneous one-hour appointments per slot, subject to each team member’s availability.</p>
+    <p className="microcopy center">Configure the HighLevel calendar as Round Robin, set the appointment duration to 60 minutes, and set Appointments Per Slot to 5. Add enough eligible team members to staff the five concurrent consultations you want available at each time.</p>
   </div>;
 }
