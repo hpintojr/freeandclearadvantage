@@ -15,13 +15,21 @@ export function validateLead(input: unknown): { ok: true; data: LeadPayload } | 
   if (!data.employment) return { ok: false, error: "Select employment status." };
   if (!Array.isArray(data.debtTypes) || data.debtTypes.length < 1) return { ok: false, error: "Select at least one debt type." };
   if (!data.paymentStatus) return { ok: false, error: "Select payment status." };
-  if (!data.firstName?.trim() || !data.lastName?.trim()) return { ok: false, error: "Enter your name." };
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.email || "")) return { ok: false, error: "Enter a valid email." };
-  if (!data.address?.trim()) return { ok: false, error: "Enter your mailing address." };
-  if (!/^\d{5}(-\d{4})?$/.test(data.zip || "")) return { ok: false, error: "Enter a valid ZIP code." };
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(data.dob || "")) return { ok: false, error: "Enter a valid date of birth." };
 
-  const birth = new Date(`${data.dob}T00:00:00Z`);
+  const firstName = data.firstName?.trim();
+  const lastName = data.lastName?.trim();
+  const email = data.email?.toLowerCase().trim();
+  const address = data.address?.trim();
+  const zip = data.zip?.trim();
+  const dob = data.dob?.trim();
+
+  if (!firstName || !lastName) return { ok: false, error: "Enter your name." };
+  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return { ok: false, error: "Enter a valid email." };
+  if (!address) return { ok: false, error: "Enter your mailing address." };
+  if (!zip || !/^\d{5}(-\d{4})?$/.test(zip)) return { ok: false, error: "Enter a valid ZIP code." };
+  if (!dob || !/^\d{4}-\d{2}-\d{2}$/.test(dob)) return { ok: false, error: "Enter a valid date of birth." };
+
+  const birth = new Date(`${dob}T00:00:00Z`);
   const now = new Date();
   let age = now.getUTCFullYear() - birth.getUTCFullYear();
   const monthDiff = now.getUTCMonth() - birth.getUTCMonth();
@@ -36,10 +44,12 @@ export function validateLead(input: unknown): { ok: true; data: LeadPayload } | 
     data: {
       ...(data as LeadPayload),
       state: String(data.state).toUpperCase(),
-      firstName: data.firstName.trim(),
-      lastName: data.lastName.trim(),
-      email: data.email.toLowerCase().trim(),
-      address: data.address.trim(),
+      firstName,
+      lastName,
+      email,
+      address,
+      zip,
+      dob,
       phone: digits.length === 10 ? `+1${digits}` : `+${digits}`,
       tcpaConsent: data.tcpaConsent === true,
     },
