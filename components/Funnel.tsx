@@ -2,6 +2,7 @@
 
 import { FormEvent, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import AddressAutocomplete from "./AddressAutocomplete";
 
 const states = [
   ["AL","Alabama"],["AK","Alaska"],["AZ","Arizona"],["AR","Arkansas"],["CA","California"],["CO","Colorado"],["CT","Connecticut"],["DE","Delaware"],["FL","Florida"],["GA","Georgia"],["HI","Hawaii"],["ID","Idaho"],["IL","Illinois"],["IN","Indiana"],["IA","Iowa"],["KS","Kansas"],["KY","Kentucky"],["LA","Louisiana"],["ME","Maine"],["MD","Maryland"],["MA","Massachusetts"],["MI","Michigan"],["MN","Minnesota"],["MS","Mississippi"],["MO","Missouri"],["MT","Montana"],["NE","Nebraska"],["NV","Nevada"],["NH","New Hampshire"],["NJ","New Jersey"],["NM","New Mexico"],["NY","New York"],["NC","North Carolina"],["ND","North Dakota"],["OH","Ohio"],["OK","Oklahoma"],["OR","Oregon"],["PA","Pennsylvania"],["RI","Rhode Island"],["SC","South Carolina"],["SD","South Dakota"],["TN","Tennessee"],["TX","Texas"],["UT","Utah"],["VT","Vermont"],["VA","Virginia"],["WA","Washington"],["WV","West Virginia"],["WI","Wisconsin"],["WY","Wyoming"],["DC","District of Columbia"]
@@ -19,6 +20,7 @@ const initial = {
   lastName: "",
   email: "",
   address: "",
+  city: "",
   zip: "",
   dob: "",
   phone: "",
@@ -135,7 +137,7 @@ export default function Funnel() {
 
           {step === 7 && <>
             <p className="eyebrow">Location details</p><h1>What’s your mailing address?</h1><p className="subtitle">This helps determine which options may be available where you live.</p>
-            <label>Street address<input autoComplete="street-address" value={form.address} onChange={(e)=>set("address",e.target.value)} /></label>
+            <label>Street address<AddressAutocomplete value={{ address: form.address, city: form.city, state: form.state, zip: form.zip }} onChange={(address) => setForm((current) => ({ ...current, ...address }))} /></label>
             <label>ZIP code<input inputMode="numeric" autoComplete="postal-code" value={form.zip} onChange={(e)=>set("zip",e.target.value.replace(/[^0-9-]/g,""))} /></label>
           </>}
 

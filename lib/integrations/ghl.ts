@@ -12,17 +12,19 @@ function headers(version: string) {
 }
 
 function customFields(lead: LeadPayload, consentTimestamp: string, consentVersion: string) {
-  const fields: { id: string; fieldValue: string }[] = [];
-  const add = (id: string | undefined, value: string | number | boolean) => {
-    if (id) fields.push({ id, fieldValue: String(value) });
+  const fields: { id: string; fieldValue: string | string[] }[] = [];
+  const add = (id: string | undefined, value: string | string[] | number | boolean) => {
+    if (id) fields.push({ id, fieldValue: Array.isArray(value) ? value : String(value) });
   };
   add(process.env.GHL_CF_DEBT_AMOUNT, lead.debtAmount);
-  add(process.env.GHL_CF_DEBT_TYPES, lead.debtTypes.join(", "));
+  add(process.env.GHL_CF_DEBT_TYPES, lead.debtTypes);
   add(process.env.GHL_CF_EMPLOYMENT, lead.employment);
   add(process.env.GHL_CF_PAYMENT_STATUS, lead.paymentStatus);
   add(process.env.GHL_CF_CONSENT, lead.tcpaConsent);
   add(process.env.GHL_CF_CONSENT_TIMESTAMP, consentTimestamp);
   add(process.env.GHL_CF_CONSENT_VERSION, consentVersion);
+  add(process.env.GHL_CF_DOB, lead.dob);
+  add(process.env.GHL_CF_LEAD_SOURCE, "Free & Clear Advantage Website");
   return fields;
 }
 
@@ -56,6 +58,7 @@ export async function sendLeadToGhl(lead: LeadPayload, consentTimestamp: string,
       email: lead.email,
       phone: lead.phone,
       address1: lead.address,
+      city: lead.city,
       state: lead.state,
       postalCode: lead.zip,
       dateOfBirth: lead.dob,
@@ -67,8 +70,7 @@ export async function sendLeadToGhl(lead: LeadPayload, consentTimestamp: string,
   });
 
   if (!response.ok) {
-    const text = await response.text();
-    throw new Error(`GHL contact upsert failed: ${response.status} ${text.slice(0, 300)}`);
+    throw new Error(`GHL contact upsert failed: ${response.status}`);
   }
 
   const json = (await response.json()) as { contact?: { id?: string }; id?: string };
@@ -115,8 +117,7 @@ export async function createGhlAppointment(args: {
   });
 
   if (!response.ok) {
-    const text = await response.text();
-    throw new Error(`GHL appointment failed: ${response.status} ${text.slice(0, 300)}`);
+    throw new Error(`GHL appointment failed: ${response.status}`);
   }
   return response.json();
 }

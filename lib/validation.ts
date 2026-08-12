@@ -20,6 +20,7 @@ export function validateLead(input: unknown): { ok: true; data: LeadPayload } | 
   const lastName = data.lastName?.trim();
   const email = data.email?.toLowerCase().trim();
   const address = data.address?.trim();
+  const city = data.city?.trim() || "";
   const zip = data.zip?.trim();
   const dob = data.dob?.trim();
 
@@ -48,6 +49,7 @@ export function validateLead(input: unknown): { ok: true; data: LeadPayload } | 
       lastName,
       email,
       address,
+      city,
       zip,
       dob,
       phone: digits.length === 10 ? `+1${digits}` : `+${digits}`,

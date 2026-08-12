@@ -11,7 +11,7 @@ Mobile-first debt-relief lead funnel for `freeandclearadvantage.com`, built with
 5. Monthly payment status
 6. Name
 7. Email
-8. Mailing address + ZIP
+8. Google-assisted mailing address + hidden city + ZIP (with manual fallback)
 9. Date of birth
 10. Phone + optional express contact consent
 11. Results page with call CTA and booking calendar
@@ -27,6 +27,8 @@ The result page deliberately says **“based on your answers, you may qualify”
 - If no CRM credentials are present, the site runs in preview/demo mode and does not persist the lead.
 
 Custom CRM fields are environment-configurable. Verify all HighLevel custom-field IDs before production. The form records the consumer’s contact-consent choice, timestamp, and disclosure version when the corresponding CRM fields are configured. If the optional contact-consent box is not selected, the native HighLevel integration sets DND.
+
+Address autocomplete uses `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY`. Server-side address validation uses `GOOGLE_ADDRESS_VALIDATION_API_KEY`; a Google outage does not block lead submission, and the selected/manual address remains the fallback.
 
 ## Booking / HighLevel round robin
 

@@ -21,6 +21,7 @@ export type LeadPayload = {
   lastName: string;
   email: string;
   address: string;
+  city: string;
   zip: string;
   dob: string;
   phone: string;

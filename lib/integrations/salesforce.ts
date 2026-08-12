@@ -108,6 +108,7 @@ export async function sendLeadToSalesforce(
     mobilePhone: lead.phone,
     description: buildDescription(lead, consentTimestamp, consentVersion),
     addressLine1: lead.address,
+    city: lead.city,
     state: lead.state,
     zipCode: lead.zip,
     applicantDOB: lead.dob,
@@ -127,7 +128,7 @@ export async function sendLeadToSalesforce(
 
   const text = await response.text();
   if (!response.ok) {
-    throw new Error(`Salesforce Apex lead create failed: ${response.status} ${text.slice(0, 500)}`);
+    throw new Error(`Salesforce Apex lead create failed: ${response.status}`);
   }
 
   let leadId: string | undefined;
