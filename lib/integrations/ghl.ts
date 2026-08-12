@@ -53,6 +53,7 @@ export async function sendLeadToGhl(lead: LeadPayload, consentTimestamp: string)
       state: lead.state,
       postalCode: lead.zip,
       dateOfBirth: lead.dob,
+      ...(lead.tcpaConsent ? {} : { dnd: true }),
       source: lead.source || "Free & Clear Advantage Web Funnel",
       customFields: customFields(lead, consentTimestamp),
     }),
