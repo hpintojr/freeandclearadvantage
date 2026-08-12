@@ -30,7 +30,6 @@ export function validateLead(input: unknown): { ok: true; data: LeadPayload } | 
 
   const digits = (data.phone || "").replace(/\D/g, "");
   if (digits.length !== 10 && !(digits.length === 11 && digits.startsWith("1"))) return { ok: false, error: "Enter a valid U.S. phone number." };
-  if (data.tcpaConsent !== true) return { ok: false, error: "Consent is required to request a call or text." };
 
   return {
     ok: true,
@@ -42,6 +41,7 @@ export function validateLead(input: unknown): { ok: true; data: LeadPayload } | 
       email: data.email.toLowerCase().trim(),
       address: data.address.trim(),
       phone: digits.length === 10 ? `+1${digits}` : `+${digits}`,
+      tcpaConsent: data.tcpaConsent === true,
     },
   };
 }
