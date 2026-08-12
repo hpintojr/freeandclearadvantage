@@ -20,17 +20,22 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
           </Link>
           <a className="header-phone" href={`tel:${siteConfig.callPhoneE164}`}>Call {siteConfig.callPhone}</a>
         </header>
+        <div style={{ background: "#eef6ff", borderBottom: "1px solid #dce4ee", padding: "8px 16px", textAlign: "center", fontSize: ".78rem", color: "#52657a" }}>
+          Before entering information, review our <Link href="/notice-at-collection">Notice at Collection</Link> and <Link href="/privacy">Privacy Policy</Link>.
+        </div>
         <main>{children}</main>
         <footer className="site-footer">
           <div className="footer-links">
             <Link href="/privacy">Privacy Policy</Link>
+            <span>•</span>
+            <Link href="/notice-at-collection">Notice at Collection</Link>
             <span>•</span>
             <Link href="/terms">Terms of Use</Link>
             <span>•</span>
             <Link href="/privacy-choices">Privacy Choices</Link>
           </div>
           <p>
-            Free & Clear Advantage is a marketing and referral service that helps consumers request information about potential debt-relief options. We are not a lender, law firm, or credit repair organization, and we do not make credit decisions or guarantee enrollment, savings, creditor participation, or any particular result. Availability and program terms vary by provider, state, debt type, and individual circumstances. Debt-relief programs can involve fees and may affect your credit. Review all provider disclosures before enrolling.
+            Free & Clear Advantage provides information and facilitates requests regarding potential debt-relief options. We are not a lender, law firm, or credit repair organization, and we do not make credit decisions or guarantee enrollment, savings, creditor participation, or any particular result. Availability and program terms vary by provider, state, debt type, and individual circumstances. Debt-relief programs can involve fees and may affect your credit. Review all provider disclosures before enrolling.
           </p>
           <p>© {new Date().getFullYear()} Free & Clear Advantage. All rights reserved.</p>
         </footer>
