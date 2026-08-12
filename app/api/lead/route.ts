@@ -25,8 +25,8 @@ export async function POST(request: Request) {
   }
 
   const [ghl, salesforce] = await Promise.allSettled([
-    sendLeadToGhl(parsed.data, consentTimestamp),
-    sendLeadToSalesforce(parsed.data, consentTimestamp),
+    sendLeadToGhl(parsed.data, consentTimestamp, consentVersion),
+    sendLeadToSalesforce(parsed.data, consentTimestamp, consentVersion),
   ]);
 
   if (ghl.status === "rejected") console.error("GHL lead error", ghl.reason);
