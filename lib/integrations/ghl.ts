@@ -2,19 +2,19 @@ import type { LeadPayload } from "../types";
 
 const baseUrl = "https://services.leadconnectorhq.com";
 
-function headers() {
+function headers(version: string) {
   return {
     Authorization: `Bearer ${process.env.GHL_ACCESS_TOKEN}`,
     Accept: "application/json",
     "Content-Type": "application/json",
-    Version: process.env.GHL_API_VERSION || "2021-07-28",
+    Version: version,
   };
 }
 
 function customFields(lead: LeadPayload, consentTimestamp: string) {
-  const fields: { id: string; field_value: string | number | boolean }[] = [];
+  const fields: { id: string; fieldValue: string }[] = [];
   const add = (id: string | undefined, value: string | number | boolean) => {
-    if (id) fields.push({ id, field_value: value });
+    if (id) fields.push({ id, fieldValue: String(value) });
   };
   add(process.env.GHL_CF_DEBT_AMOUNT, lead.debtAmount);
   add(process.env.GHL_CF_DEBT_TYPES, lead.debtTypes.join(", "));
@@ -39,9 +39,10 @@ export async function sendLeadToGhl(lead: LeadPayload, consentTimestamp: string)
 
   if (!process.env.GHL_ACCESS_TOKEN || !process.env.GHL_LOCATION_ID) return null;
 
+  const contactsVersion = process.env.GHL_CONTACTS_API_VERSION || "2021-07-28";
   const response = await fetch(`${baseUrl}/contacts/upsert`, {
     method: "POST",
-    headers: headers(),
+    headers: headers(contactsVersion),
     body: JSON.stringify({
       locationId: process.env.GHL_LOCATION_ID,
       firstName: lead.firstName,
@@ -75,7 +76,8 @@ export async function getGhlFreeSlots(startDate: string, endDate: string, timezo
   url.searchParams.set("endDate", String(new Date(`${endDate}T23:59:59`).getTime()));
   url.searchParams.set("timezone", timezone);
 
-  const response = await fetch(url, { headers: headers(), cache: "no-store" });
+  const calendarVersion = process.env.GHL_CALENDARS_API_VERSION || "v3";
+  const response = await fetch(url, { headers: headers(calendarVersion), cache: "no-store" });
   if (!response.ok) throw new Error(`GHL free slots failed: ${response.status}`);
   return response.json();
 }
@@ -88,9 +90,10 @@ export async function createGhlAppointment(args: {
 }) {
   if (!process.env.GHL_ACCESS_TOKEN || !process.env.GHL_CALENDAR_ID || !process.env.GHL_LOCATION_ID) return null;
 
+  const calendarVersion = process.env.GHL_CALENDARS_API_VERSION || "v3";
   const response = await fetch(`${baseUrl}/calendars/events/appointments`, {
     method: "POST",
-    headers: headers(),
+    headers: headers(calendarVersion),
     body: JSON.stringify({
       calendarId: process.env.GHL_CALENDAR_ID,
       locationId: process.env.GHL_LOCATION_ID,
