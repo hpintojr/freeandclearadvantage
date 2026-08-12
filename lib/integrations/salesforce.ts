@@ -60,6 +60,24 @@ function mapEmploymentStatus(value: string) {
   }
 }
 
+function mapLoanPurpose(debtTypes: string[]) {
+  // Multiple debts are best represented by the CRM's consolidation option.
+  if (debtTypes.length !== 1) return "Debt Consolidation";
+
+  switch (debtTypes[0]) {
+    case "Credit Cards":
+      return "Pay off credit cards";
+    case "Medical Bills":
+      return "Medical Bill";
+    case "Auto Loans":
+      return "New auto purchase";
+    case "Other":
+      return "Other";
+    default:
+      return "Debt Consolidation";
+  }
+}
+
 function buildDescription(lead: LeadPayload, consentTimestamp: string, consentVersion: string) {
   return [
     "Free & Clear Advantage website lead.",
@@ -114,6 +132,7 @@ export async function sendLeadToSalesforce(
     applicantDOB: lead.dob,
     debtAmount: lead.debtAmount,
     employmentStatus: mapEmploymentStatus(lead.employment),
+    loanPurpose: mapLoanPurpose(lead.debtTypes),
   };
 
   const response = await fetch(endpoint, {
