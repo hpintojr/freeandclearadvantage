@@ -37,7 +37,8 @@ type PlacesLibrary = {
 
 type GoogleMapsApi = {
   maps: {
-    importLibrary(name: "places"): Promise<PlacesLibrary>;
+    importLibrary?: (name: "places") => Promise<PlacesLibrary>;
+    places?: PlacesLibrary;
   };
 };
 
@@ -92,27 +93,36 @@ export default function AddressAutocomplete({
     let cancelled = false;
     let element: PlaceAutocompleteElement | null = null;
 
-    window.google.maps
-      .importLibrary("places")
-      .then(({ PlaceAutocompleteElement }) => {
-        if (cancelled || !containerRef.current) return;
-        element = new PlaceAutocompleteElement({ includedRegionCodes: ["us"] });
-        element.placeholder = "Start typing your street address";
-        element.addEventListener("gmp-select", async (event) => {
-          const prediction = (event as PlaceSelectEvent).placePrediction;
-          if (!prediction) return;
-          const place = prediction.toPlace();
-          await place.fetchFields({ fields: ["formattedAddress", "addressComponents"] });
-          const parsed = parsePlace(place);
-          onChangeRef.current(parsed);
-        });
-        containerRef.current.replaceChildren(element);
-        setGoogleReady(true);
-      })
-      .catch(() => {
-        // Keep the normal address input available when Google is unavailable.
-        setGoogleReady(false);
+    const loadPlaces = async () => {
+      const maps = window.google?.maps;
+      if (!maps) return;
+
+      const places =
+        typeof maps.importLibrary === "function"
+          ? await maps.importLibrary("places")
+          : maps.places;
+      if (!places?.PlaceAutocompleteElement) return;
+
+      const { PlaceAutocompleteElement } = places;
+      if (cancelled || !containerRef.current) return;
+      element = new PlaceAutocompleteElement({ includedRegionCodes: ["us"] });
+      element.placeholder = "Start typing your street address";
+      element.addEventListener("gmp-select", async (event) => {
+        const prediction = (event as PlaceSelectEvent).placePrediction;
+        if (!prediction) return;
+        const place = prediction.toPlace();
+        await place.fetchFields({ fields: ["formattedAddress", "addressComponents"] });
+        const parsed = parsePlace(place);
+        onChangeRef.current(parsed);
       });
+      containerRef.current.replaceChildren(element);
+      setGoogleReady(true);
+    };
+
+    loadPlaces().catch(() => {
+      // Keep the normal address input available when Google is unavailable.
+      setGoogleReady(false);
+    });
 
     return () => {
       cancelled = true;
