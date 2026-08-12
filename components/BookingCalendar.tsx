@@ -58,6 +58,6 @@ export default function BookingCalendar({ contactId, firstName, demoMode }: { co
     <div className="date-row">{dates.map((date) => <button key={date} className={date===selectedDate?"date-chip active":"date-chip"} onClick={() => setSelectedDate(date)}>{labelDate(date)}</button>)}</div>
     {daySlots.length ? <div className="slot-grid">{daySlots.map((slot) => <button key={slot} className="time-slot" disabled={booking===slot} onClick={() => book(slot)}>{booking===slot?"Booking…":labelTime(slot)}</button>)}</div> : <p>No times are available on this date. Please choose another day or call us.</p>}
     {message && <div className="booking-message">{message}</div>}
-    <p className="microcopy center">Consultations are 60 minutes with available start times every 30 minutes from 9:00 AM through 4:30 PM Pacific, so the final appointment ends at 5:30 PM. For a hard cap of five simultaneous consultations, keep the HighLevel Round Robin calendar limited to five eligible team members with one active appointment per member.</p>
+    <p className="microcopy center">Consultations are 60 minutes with available start times every 30 minutes from 9:00 AM through 5:30 PM Pacific, so the final appointment ends at 6:30 PM. For a hard cap of five simultaneous consultations, keep the HighLevel Round Robin calendar limited to five eligible team members with one active appointment per member.</p>
   </div>;
 }
