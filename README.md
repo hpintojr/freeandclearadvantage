@@ -13,7 +13,7 @@ Mobile-first debt-relief lead funnel for `freeandclearadvantage.com`, built with
 7. Email
 8. Mailing address + ZIP
 9. Date of birth
-10. Phone + express contact consent
+10. Phone + optional express contact consent
 11. Results page with call CTA and booking calendar
 
 The result page deliberately says **“based on your answers, you may qualify”** rather than making a guaranteed qualification claim.
@@ -26,7 +26,7 @@ The result page deliberately says **“based on your answers, you may qualify”
 - Salesforce: native REST Lead creation using `SALESFORCE_INSTANCE_URL` + `SALESFORCE_ACCESS_TOKEN`, or a Salesforce Flow/webhook using `SALESFORCE_WEBHOOK_URL`.
 - If no CRM credentials are present, the site runs in preview/demo mode and does not persist the lead.
 
-Custom CRM fields are environment-configurable. Verify all HighLevel custom-field IDs and Salesforce API field names before production.
+Custom CRM fields are environment-configurable. Verify all HighLevel custom-field IDs and Salesforce API field names before production. The form records the consumer’s contact-consent choice, timestamp, and disclosure version when the corresponding CRM fields are configured. If the optional contact-consent box is not selected, the native HighLevel integration sets DND and the native Salesforce integration sets `DoNotCall`.
 
 ## Booking / HighLevel round robin
 
@@ -44,7 +44,7 @@ Before production, confirm with counsel:
 
 - Exact legal entity name, physical/business address, privacy contact, and all state-specific registrations/licensing disclosures.
 - Whether Free & Clear Advantage is a marketing/referral service, direct provider, or both; adjust footer/legal text to match reality.
-- Which parties are authorized to call/text. The current contact consent is specific to **Free & Clear Advantage**. If third-party providers will independently place automated/prerecorded/AI marketing calls or texts, add compliant party-specific consent at the correct point in the flow rather than silently expanding this disclosure.
+- Which parties are authorized to call/text. The current optional contact consent is specific to **Free & Clear Advantage**. If third-party providers will independently place automated/prerecorded/AI marketing calls or texts, add compliant party-specific consent at the correct point in the flow rather than silently expanding this disclosure.
 - All debt-relief advertising claims and substantiation. Do not use guaranteed savings, guaranteed approval/qualification, or claims such as “get rid of all your debt” without appropriate legal review and substantiation.
 - Required Telemarketing Sales Rule disclosures before enrollment, including timing, cost, negative consequences, and dedicated-account disclosures when applicable.
 - Cookie/analytics/ad pixels, state privacy notices, Notice at Collection, opt-out mechanisms, retention periods, and request-verification workflow.
