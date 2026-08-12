@@ -10,8 +10,7 @@ async function AsyncResults({ searchParams }: { searchParams: Promise<Record<str
   const params = await searchParams;
   const firstName = typeof params.firstName === "string" ? params.firstName : "there";
   const debt = typeof params.debt === "string" ? Number(params.debt) : undefined;
-  const contactId = typeof params.contactId === "string" ? params.contactId : undefined;
-  const leadId = typeof params.leadId === "string" ? params.leadId : "";
+  const contactId = typeof params.contactId === "string" ? params.contactId : "";
   const demo = params.demo === "1";
 
   return (
@@ -31,8 +30,8 @@ async function AsyncResults({ searchParams }: { searchParams: Promise<Record<str
 
       <div className="booking-section">
         <p className="eyebrow">Prefer a scheduled time?</p><h2>Book a one-hour consultation</h2><p>Appointments are offered between 9:30 AM and 5:00 PM Pacific. Live availability is pulled from our HighLevel round-robin calendar when connected.</p>
-        {demo && <div className="demo-note">Preview mode: CRM credentials are not connected yet, so the calendar below shows sample availability.</div>}
-        <BookingCalendar contactId={contactId || leadId} firstName={firstName} demoMode={demo || !contactId} />
+        {(demo || !contactId) && <div className="demo-note">Preview mode: a live HighLevel contact/calendar connection is not available yet, so the calendar below shows sample availability.</div>}
+        <BookingCalendar contactId={contactId} firstName={firstName} demoMode={demo || !contactId} />
       </div>
     </section>
   );
