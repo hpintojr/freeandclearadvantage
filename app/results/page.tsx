@@ -46,8 +46,8 @@ async function AsyncResults({ searchParams }: { searchParams: Promise<Record<str
       </div>
 
       <div className="booking-section">
-        <p className="eyebrow">Prefer a scheduled time?</p><h2>Book a one-hour consultation</h2><p>One-hour telephone consultations are offered with start times every 30 minutes beginning at 9:00 AM Pacific. The final available start time is 5:30 PM, ending at 6:30 PM. A manager assigns each appointment to an available specialist.</p>
-        {(demo || !contactId) && <div className="demo-note">Preview mode: a live HighLevel contact/calendar connection is not available yet, so the calendar below shows sample availability.</div>}
+        {/* Heading copy lives inside BookingCalendar so a confirmed booking
+            replaces the scheduling invitation along with the slot grid. */}
         <BookingCalendar contactId={contactId} salesforceLeadId={salesforceLeadId} firstName={firstName} demoMode={demo || !contactId} />
       </div>
     </section>
