@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
 import { addMinutesIso, slotDurationMinutes } from "@/lib/booking";
-import { createAppointmentOpportunity, createGhlAppointment } from "@/lib/integrations/ghl";
+import {
+  createAppointmentOpportunity,
+  createGhlAppointment,
+  updateGhlAppointment,
+} from "@/lib/integrations/ghl";
 import { createSalesforceAppointmentEvent } from "@/lib/integrations/salesforce";
 
 export const runtime = "nodejs";
@@ -49,6 +53,13 @@ export async function POST(request: Request) {
         });
         salesforceEventId = event?.eventId;
         salesforceSynced = Boolean(salesforceEventId);
+        for (const supersededId of event?.supersededAppointmentIds || []) {
+          try {
+            await updateGhlAppointment(supersededId, { appointmentStatus: "cancelled" });
+          } catch (supersedeError) {
+            console.error(`GHL superseded appointment ${supersededId} cancellation error`, supersedeError);
+          }
+        }
       } catch (salesforceError) {
         console.error("Salesforce appointment event sync error", salesforceError);
       }

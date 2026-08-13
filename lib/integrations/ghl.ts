@@ -39,6 +39,8 @@ export type GhlOpportunity = {
 export type GhlUser = { id?: string; email?: string; name?: string };
 export type GhlContact = {
   id?: string;
+  firstName?: string;
+  lastName?: string;
   email?: string;
   phone?: string;
   dnd?: boolean;
@@ -282,6 +284,31 @@ export async function applySalesforceDncToGhl(contactId: string) {
   return updated.contact || null;
 }
 
+export async function getGhlContact(contactId: string) {
+  const json = await ghlJson<{ contact?: GhlContact } & GhlContact>(
+    `/contacts/${encodeURIComponent(contactId)}`,
+    {},
+    "v3",
+  );
+  return (json.contact || json) as GhlContact;
+}
+
+export async function addGhlContactTags(contactId: string, tags: string[]) {
+  return ghlJson(
+    `/contacts/${encodeURIComponent(contactId)}/tags`,
+    { method: "POST", body: JSON.stringify({ tags }) },
+    "v3",
+  );
+}
+
+export async function addContactToGhlWorkflow(contactId: string, workflowId: string) {
+  return ghlJson(
+    `/contacts/${encodeURIComponent(contactId)}/workflow/${encodeURIComponent(workflowId)}`,
+    { method: "POST", body: JSON.stringify({}) },
+    "v3",
+  );
+}
+
 export async function getGhlAppointment(appointmentId: string) {
   const json = await ghlJson<{ event?: GhlAppointment; appointment?: GhlAppointment } & GhlAppointment>(
     `/calendars/events/appointments/${encodeURIComponent(appointmentId)}`,
@@ -420,5 +447,14 @@ export async function updateAppointmentOpportunity(
     { method: "PUT", body: JSON.stringify(body) },
     process.env.GHL_OPPORTUNITIES_API_VERSION || "v3",
   );
+}
+
+export async function getAppointmentOpportunityStage(appointmentId: string, contactId?: string) {
+  const [opportunity, pipeline] = await Promise.all([
+    findAppointmentOpportunity(appointmentId, contactId),
+    getAppointmentPipeline(),
+  ]);
+  const stage = pipeline?.stages?.find((candidate) => candidate.id === opportunity?.pipelineStageId);
+  return { opportunity, pipeline, stage };
 }
 

@@ -30,8 +30,32 @@ export type SalesforceAppointmentEvent = {
   Owner?: { Email?: string; Name?: string };
   StartDateTime?: string;
   EndDateTime?: string;
+  Description?: string;
+  ShowAs?: string;
   LastModifiedDate?: string;
   IsDeleted?: boolean;
+};
+
+export type SalesforceLeadState = {
+  Id: string;
+  OwnerId?: string;
+  Status?: string;
+  Sub_Status__c?: string;
+  DNC__c?: boolean;
+  LeadSource?: string;
+  Email?: string;
+  Phone?: string;
+  MobilePhone?: string;
+};
+
+export type SalesforceCallActivity = {
+  Id: string;
+  WhoId?: string;
+  Subject?: string;
+  Status?: string;
+  TaskSubtype?: string;
+  CallDisposition?: string;
+  CreatedDate?: string;
 };
 
 export type SalesforceDncLead = {
@@ -105,6 +129,43 @@ function escapeSoqlLiteral(value: string) {
   return value.replace(/\\/g, "\\\\").replace(/'/g, "\\'");
 }
 
+async function salesforceQuery<T>(
+  auth: { accessToken: string; instanceUrl: string },
+  dataUrl: string,
+  query: string,
+  queryAll = false,
+) {
+  const response = await fetch(
+    `${auth.instanceUrl}${dataUrl}/${queryAll ? "queryAll" : "query"}?q=${encodeURIComponent(query)}`,
+    { headers: { Authorization: `Bearer ${auth.accessToken}` }, cache: "no-store" },
+  );
+  const body = await response.text();
+  if (!response.ok) throw new Error(`Salesforce query failed: ${response.status} ${body.slice(0, 300)}`);
+  return (body ? JSON.parse(body) : {}) as { records?: T[]; totalSize?: number };
+}
+
+async function patchSalesforceRecord(
+  auth: { accessToken: string; instanceUrl: string },
+  dataUrl: string,
+  objectName: "Lead" | "Event",
+  recordId: string,
+  changes: Record<string, unknown>,
+) {
+  const response = await fetch(
+    `${auth.instanceUrl}${dataUrl}/sobjects/${objectName}/${encodeURIComponent(recordId)}`,
+    {
+      method: "PATCH",
+      headers: { Authorization: `Bearer ${auth.accessToken}`, "Content-Type": "application/json" },
+      body: JSON.stringify(changes),
+      cache: "no-store",
+    },
+  );
+  const body = await response.text();
+  if (!response.ok) {
+    throw new Error(`Salesforce ${objectName} update failed: ${response.status} ${body.slice(0, 300)}`);
+  }
+}
+
 export async function createSalesforceAppointmentEvent(input: {
   leadId: string;
   ghlAppointmentId: string;
@@ -120,32 +181,98 @@ export async function createSalesforceAppointmentEvent(input: {
   const assignmentEmail = (process.env.SALESFORCE_DEFAULT_ASSIGNMENT_EMAIL || "alex@advantagefirst.com").trim();
   const emailLiteral = escapeSoqlLiteral(assignmentEmail);
   const userQuery = `SELECT Id FROM User WHERE IsActive = true AND (Email = '${emailLiteral}' OR Username = '${emailLiteral}') ORDER BY LastLoginDate DESC NULLS LAST LIMIT 1`;
-  const userResponse = await fetch(
-    `${auth.instanceUrl}${dataUrl}/query?q=${encodeURIComponent(userQuery)}`,
-    { headers, cache: "no-store" },
-  );
-  if (!userResponse.ok) throw new Error(`Salesforce assignment user lookup failed: ${userResponse.status}`);
-  const userResult = (await userResponse.json()) as { records?: { Id?: string }[] };
-  const ownerId = userResult.records?.[0]?.Id;
-  if (!ownerId) throw new Error(`No active Salesforce user found for ${assignmentEmail}.`);
+  const userResult = await salesforceQuery<{ Id?: string }>(auth, dataUrl, userQuery);
+  const defaultOwnerId = userResult.records?.[0]?.Id;
+  if (!defaultOwnerId) throw new Error(`No active Salesforce user found for ${assignmentEmail}.`);
+
+  const leadQuery = [
+    "SELECT Id, OwnerId, Status, Sub_Status__c, DNC__c, LeadSource",
+    "FROM Lead",
+    `WHERE Id = '${escapeSoqlLiteral(input.leadId)}'`,
+    "LIMIT 1",
+  ].join(" ");
+  const leadResult = await salesforceQuery<SalesforceLeadState>(auth, dataUrl, leadQuery);
+  const lead = leadResult.records?.[0];
+  if (!lead?.Id) throw new Error("Salesforce appointment Lead was not found.");
+
+  // A first booking goes to Alex for manual distribution. A reschedule preserves
+  // the agent already assigned to the appointment-stage Lead.
+  const isReschedule =
+    lead.Status?.trim().toLowerCase() === "application pending" &&
+    lead.Sub_Status__c?.trim().toLowerCase() === "appointment set to finish application";
+  const ownerId = isReschedule && lead.OwnerId?.startsWith("005") ? lead.OwnerId : defaultOwnerId;
+  await patchSalesforceRecord(auth, dataUrl, "Lead", lead.Id, {
+    OwnerId: ownerId,
+    Status: "Application Pending",
+    Sub_Status__c: "Appointment Set to finish Application",
+  });
+
+  const subject = `F&C Telephone Consultation [GHL:${input.ghlAppointmentId}]`;
+  const existingQuery = [
+    "SELECT Id, Subject, Description, StartDateTime, EndDateTime, OwnerId",
+    "FROM Event",
+    `WHERE WhoId = '${escapeSoqlLiteral(input.leadId)}'`,
+    `AND Subject = '${escapeSoqlLiteral(subject)}'`,
+    "ORDER BY LastModifiedDate DESC",
+    "LIMIT 1",
+  ].join(" ");
+  const existingResult = await salesforceQuery<SalesforceAppointmentEvent>(auth, dataUrl, existingQuery);
+  const existing = existingResult.records?.[0];
+
+  const recentFrom = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString().replace(".000", "");
+  const siblingQuery = [
+    "SELECT Id, Subject, Description, StartDateTime, EndDateTime, OwnerId",
+    "FROM Event",
+    `WHERE WhoId = '${escapeSoqlLiteral(input.leadId)}'`,
+    "AND Subject LIKE 'F&C Telephone Consultation [GHL:%'",
+    `AND StartDateTime >= ${recentFrom}`,
+    "ORDER BY StartDateTime DESC",
+  ].join(" ");
+  const siblingResult = await salesforceQuery<SalesforceAppointmentEvent>(auth, dataUrl, siblingQuery);
+  const supersededAppointmentIds: string[] = [];
+  for (const sibling of siblingResult.records || []) {
+    const oldAppointmentId = sibling.Subject?.match(/\[GHL:([^\]]+)\]/)?.[1];
+    if (!oldAppointmentId || oldAppointmentId === input.ghlAppointmentId) continue;
+    supersededAppointmentIds.push(oldAppointmentId);
+    await patchSalesforceRecord(auth, dataUrl, "Event", sibling.Id, {
+      Subject: `F&C Telephone Consultation - Superseded [GHL:${oldAppointmentId}]`,
+      ShowAs: "Free",
+      Description: [
+        sibling.Description?.trim(),
+        `Superseded by GHL appointment ${input.ghlAppointmentId}.`,
+      ]
+        .filter(Boolean)
+        .join(" "),
+    });
+  }
+
+  const eventChanges = {
+    Subject: subject,
+    WhoId: input.leadId,
+    OwnerId: ownerId,
+    StartDateTime: input.startTime,
+    EndDateTime: input.endTime,
+    Location: "Telephone",
+    ShowAs: "Busy",
+    Description: [
+      `Consumer: ${input.consumerName}.`,
+      `GHL appointment ID: ${input.ghlAppointmentId}.`,
+      ownerId === defaultOwnerId
+        ? "Initially assigned to Alex for manual distribution."
+        : "Preserved the existing Salesforce Lead owner during reschedule.",
+      "Reassign the Lead owner; the active Event owner and GHL opportunity will synchronize automatically.",
+    ].join(" "),
+  };
+
+  if (existing?.Id) {
+    await patchSalesforceRecord(auth, dataUrl, "Event", existing.Id, eventChanges);
+    return { eventId: existing.Id, ownerId, supersededAppointmentIds, reused: true };
+  }
 
   const eventResponse = await fetch(`${auth.instanceUrl}${dataUrl}/sobjects/Event`, {
     method: "POST",
     headers: { ...headers, "Content-Type": "application/json" },
-    body: JSON.stringify({
-      Subject: `F&C Telephone Consultation [GHL:${input.ghlAppointmentId}]`,
-      WhoId: input.leadId,
-      OwnerId: ownerId,
-      StartDateTime: input.startTime,
-      EndDateTime: input.endTime,
-      Location: "Telephone",
-      Description: [
-        `Consumer: ${input.consumerName}.`,
-        `GHL appointment ID: ${input.ghlAppointmentId}.`,
-        "Initially assigned to Alex for manual distribution.",
-        "Reassign both the Lead owner and this Event owner to place it on the agent's Salesforce calendar.",
-      ].join(" "),
-    }),
+    body: JSON.stringify(eventChanges),
     cache: "no-store",
   });
   const responseText = await eventResponse.text();
@@ -155,7 +282,7 @@ export async function createSalesforceAppointmentEvent(input: {
 
   const created = responseText ? (JSON.parse(responseText) as SalesforceCreateResponse) : {};
   if (!created.id) throw new Error("Salesforce Event create response did not include an ID.");
-  return { eventId: created.id, ownerId };
+  return { eventId: created.id, ownerId, supersededAppointmentIds, reused: false };
 }
 
 export async function getSalesforceAppointmentEvents() {
@@ -166,7 +293,7 @@ export async function getSalesforceAppointmentEvents() {
   const from = new Date(now - 30 * 24 * 60 * 60 * 1000).toISOString().replace(".000", "");
   const until = new Date(now + 180 * 24 * 60 * 60 * 1000).toISOString().replace(".000", "");
   const query = [
-    "SELECT Id, Subject, WhoId, OwnerId, Owner.Email, Owner.Name, StartDateTime, EndDateTime, LastModifiedDate, IsDeleted",
+    "SELECT Id, Subject, WhoId, OwnerId, Owner.Email, Owner.Name, StartDateTime, EndDateTime, Description, ShowAs, LastModifiedDate, IsDeleted",
     "FROM Event",
     "WHERE Subject LIKE 'F&C Telephone Consultation [GHL:%'",
     `AND StartDateTime >= ${from}`,
@@ -181,6 +308,42 @@ export async function getSalesforceAppointmentEvents() {
   if (!response.ok) throw new Error(`Salesforce appointment query failed: ${response.status} ${body.slice(0, 300)}`);
   const json = (body ? JSON.parse(body) : {}) as { records?: SalesforceAppointmentEvent[] };
   return json.records || [];
+}
+
+export async function getSalesforceLeadStates(leadIds: string[]) {
+  const uniqueIds = [...new Set(leadIds.filter((id) => id.startsWith("00Q")))];
+  if (!uniqueIds.length) return [];
+  const auth = await getSalesforceAccessToken();
+  if (!auth) return [];
+  const dataUrl = await getLatestSalesforceDataUrl(auth);
+  const idList = uniqueIds.map((id) => `'${escapeSoqlLiteral(id)}'`).join(", ");
+  const query = [
+    "SELECT Id, OwnerId, Status, Sub_Status__c, DNC__c, LeadSource, Email, Phone, MobilePhone",
+    "FROM Lead",
+    `WHERE Id IN (${idList})`,
+  ].join(" ");
+  const result = await salesforceQuery<SalesforceLeadState>(auth, dataUrl, query);
+  return result.records || [];
+}
+
+export async function getSalesforceCallActivities(leadIds: string[], since: string) {
+  const uniqueIds = [...new Set(leadIds.filter((id) => id.startsWith("00Q")))];
+  if (!uniqueIds.length) return [];
+  const auth = await getSalesforceAccessToken();
+  if (!auth) return [];
+  const dataUrl = await getLatestSalesforceDataUrl(auth);
+  const idList = uniqueIds.map((id) => `'${escapeSoqlLiteral(id)}'`).join(", ");
+  const query = [
+    "SELECT Id, WhoId, Subject, Status, TaskSubtype, CallDisposition, CreatedDate",
+    "FROM Task",
+    `WHERE WhoId IN (${idList})`,
+    `AND CreatedDate >= ${since}`,
+    "AND (TaskSubtype = 'Call' OR Subject LIKE '%Call%')",
+    "ORDER BY CreatedDate DESC",
+    "LIMIT 1000",
+  ].join(" ");
+  const result = await salesforceQuery<SalesforceCallActivity>(auth, dataUrl, query);
+  return result.records || [];
 }
 
 export async function getSalesforceDncLeads(options: { fullBackfill?: boolean } = {}) {
@@ -211,7 +374,14 @@ export async function getSalesforceDncLeads(options: { fullBackfill?: boolean } 
 
 export async function updateSalesforceAppointmentEvent(
   eventId: string,
-  changes: { StartDateTime?: string; EndDateTime?: string },
+  changes: {
+    StartDateTime?: string;
+    EndDateTime?: string;
+    OwnerId?: string;
+    Subject?: string;
+    Description?: string;
+    ShowAs?: string;
+  },
 ) {
   const auth = await getSalesforceAccessToken();
   if (!auth) return null;
@@ -225,6 +395,37 @@ export async function updateSalesforceAppointmentEvent(
   const body = await response.text();
   if (!response.ok) throw new Error(`Salesforce Event update failed: ${response.status} ${body.slice(0, 300)}`);
   return true;
+}
+
+export async function setSalesforceDncByContact(input: { email?: string; phone?: string }) {
+  const auth = await getSalesforceAccessToken();
+  if (!auth) return { matched: 0, updated: 0 };
+  const dataUrl = await getLatestSalesforceDataUrl(auth);
+  const filters: string[] = [];
+  if (input.email?.trim()) filters.push(`Email = '${escapeSoqlLiteral(input.email.trim())}'`);
+  const digits = (input.phone || "").replace(/\D/g, "");
+  if (digits.length >= 10) {
+    const tenDigits = digits.slice(-10);
+    filters.push(`Phone LIKE '%${tenDigits.slice(-7)}%'`);
+    filters.push(`MobilePhone LIKE '%${tenDigits.slice(-7)}%'`);
+  }
+  if (!filters.length) return { matched: 0, updated: 0 };
+
+  const query = [
+    "SELECT Id, DNC__c, Status, Sub_Status__c",
+    "FROM Lead",
+    `WHERE (${filters.join(" OR ")})`,
+    "ORDER BY LastModifiedDate DESC",
+    "LIMIT 25",
+  ].join(" ");
+  const result = await salesforceQuery<SalesforceLeadState>(auth, dataUrl, query);
+  let updated = 0;
+  for (const lead of result.records || []) {
+    if (lead.DNC__c) continue;
+    await patchSalesforceRecord(auth, dataUrl, "Lead", lead.Id, { DNC__c: true });
+    updated += 1;
+  }
+  return { matched: result.records?.length || 0, updated };
 }
 
 export async function deleteSalesforceAppointmentEvent(eventId: string) {
