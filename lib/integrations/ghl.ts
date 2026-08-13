@@ -227,27 +227,42 @@ function normalizeUsPhone(value: string | undefined) {
 
 export async function findGhlContactByEmailOrPhone(email?: string, phone?: string) {
   if (!process.env.GHL_LOCATION_ID) return null;
-  const candidates: Record<string, string>[] = [];
-  if (email?.trim()) candidates.push({ email: email.trim().toLowerCase() });
-  const normalizedPhone = normalizeUsPhone(phone);
-  if (normalizedPhone) candidates.push({ phone: normalizedPhone });
-
-  for (const candidate of candidates) {
+  if (email?.trim()) {
     const url = new URL(`${baseUrl}/contacts/search/duplicate`);
     url.searchParams.set("locationId", process.env.GHL_LOCATION_ID);
-    for (const [key, value] of Object.entries(candidate)) url.searchParams.set(key, value);
+    url.searchParams.set("email", email.trim().toLowerCase());
     const response = await fetch(url, {
       headers: headers("v3"),
       cache: "no-store",
     });
-    if (response.status === 404) continue;
+    if (response.status !== 404) {
+      const body = await response.text();
+      if (!response.ok) {
+        throw new Error(`GHL duplicate contact search failed: ${response.status} ${body.slice(0, 300)}`);
+      }
+      const json = (body ? JSON.parse(body) : {}) as { contact?: GhlContact } & GhlContact;
+      const contact = json.contact || json;
+      if (contact.id) return contact;
+    }
+  }
+
+  const normalizedPhone = normalizeUsPhone(phone);
+  if (normalizedPhone) {
+    const url = new URL(`${baseUrl}/contacts/`);
+    url.searchParams.set("locationId", process.env.GHL_LOCATION_ID);
+    url.searchParams.set("query", normalizedPhone);
+    url.searchParams.set("limit", "20");
+    const response = await fetch(url, {
+      headers: headers("2021-07-28"),
+      cache: "no-store",
+    });
     const body = await response.text();
     if (!response.ok) {
-      throw new Error(`GHL duplicate contact search failed: ${response.status} ${body.slice(0, 300)}`);
+      throw new Error(`GHL phone contact search failed: ${response.status} ${body.slice(0, 300)}`);
     }
-    const json = (body ? JSON.parse(body) : {}) as { contact?: GhlContact } & GhlContact;
-    const contact = json.contact || json;
-    if (contact.id) return contact;
+    const json = (body ? JSON.parse(body) : {}) as { contacts?: GhlContact[] };
+    const contact = json.contacts?.find((candidate) => normalizeUsPhone(candidate.phone) === normalizedPhone);
+    if (contact?.id) return contact;
   }
   return null;
 }
