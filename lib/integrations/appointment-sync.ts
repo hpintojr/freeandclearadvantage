@@ -59,7 +59,6 @@ export async function syncAppointments() {
         (user) => user.email?.trim().toLowerCase() === event.Owner?.Email?.trim().toLowerCase(),
       );
       const ghlChanges: Record<string, string> = {};
-      if (ghlUser?.id && ghlUser.id !== appointment.assignedUserId) ghlChanges.assignedUserId = ghlUser.id;
 
       const timesDiffer =
         !sameInstant(event.StartDateTime, appointment.startTime) ||

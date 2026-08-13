@@ -230,10 +230,18 @@ export async function updateGhlAppointment(appointmentId: string, changes: Parti
 
 export async function getGhlUsers() {
   if (!process.env.GHL_LOCATION_ID) return [];
-  const json = await ghlJson<{ users?: GhlUser[] }>(
-    `/users/?locationId=${encodeURIComponent(process.env.GHL_LOCATION_ID)}`,
-  );
-  return json.users || [];
+  let lastError: unknown;
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      const json = await ghlJson<{ users?: GhlUser[] }>(
+        `/users/?locationId=${encodeURIComponent(process.env.GHL_LOCATION_ID)}`,
+      );
+      return json.users || [];
+    } catch (error) {
+      lastError = error;
+    }
+  }
+  throw lastError;
 }
 
 export async function getAppointmentPipeline() {
