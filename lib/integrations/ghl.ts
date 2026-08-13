@@ -26,7 +26,21 @@ function customFields(lead: LeadPayload, consentTimestamp: string, consentVersio
   add(process.env.GHL_CF_CONSENT_VERSION, consentVersion);
   add(process.env.GHL_CF_DOB, lead.dob);
   add(process.env.GHL_CF_LEAD_SOURCE, "Free & Clear Advantage Website");
+  add(process.env.GHL_CF_IP_ADDRESS, lead.ipAddress || "Not available");
+  add(process.env.GHL_CF_IP_COUNTRY, lead.ipCountry || "Not available");
+  add(process.env.GHL_CF_IP_REGION, lead.ipRegion || "Not available");
   return fields;
+}
+
+function submissionAuditNote(lead: LeadPayload, consentTimestamp: string) {
+  return [
+    "Free & Clear Advantage website submission audit",
+    `Submitted: ${consentTimestamp}`,
+    `IP address: ${lead.ipAddress || "Not available"}`,
+    `IP country: ${lead.ipCountry || "Not available"}`,
+    `IP region: ${lead.ipRegion || "Not available"}`,
+    `Consumer timezone: ${lead.timezone || "Not available"}`,
+  ].join("\n");
 }
 
 export async function sendLeadToGhl(lead: LeadPayload, consentTimestamp: string, consentVersion: string) {
@@ -88,6 +102,14 @@ export async function sendLeadToGhl(lead: LeadPayload, consentTimestamp: string,
   });
   if (!tagResponse.ok) console.warn(`GHL contact tag failed: ${tagResponse.status}`);
 
+  const noteResponse = await fetch(`${baseUrl}/contacts/${contactId}/notes`, {
+    method: "POST",
+    headers: headers(contactsVersion),
+    body: JSON.stringify({ body: submissionAuditNote(lead, consentTimestamp) }),
+    cache: "no-store",
+  });
+  if (!noteResponse.ok) console.warn(`GHL submission audit note failed: ${noteResponse.status}`);
+
   return { contactId };
 }
 
@@ -135,3 +157,4 @@ export async function createGhlAppointment(args: {
   }
   return response.json();
 }
+

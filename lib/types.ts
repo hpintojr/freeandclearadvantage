@@ -28,6 +28,9 @@ export type LeadPayload = {
   tcpaConsent: boolean;
   browserTimezone?: string;
   timezone?: string;
+  ipAddress?: string;
+  ipCountry?: string;
+  ipRegion?: string;
   source?: string;
   campaign?: string;
 };
@@ -38,3 +41,4 @@ export type LeadResult = {
   salesforceLeadId?: string;
   demoMode?: boolean;
 };
+

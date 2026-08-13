@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { isIP } from "node:net";
 import { consentVersion } from "@/lib/config";
 import { sendLeadToGhl } from "@/lib/integrations/ghl";
 import { validateAddressWithGoogle } from "@/lib/integrations/google-address";
@@ -17,6 +18,11 @@ function validTimezone(value: string | null | undefined) {
   }
 }
 
+function validIpAddress(value: string | null | undefined) {
+  const candidate = value?.split(",")[0]?.trim();
+  return candidate && isIP(candidate) ? candidate : undefined;
+}
+
 export async function POST(request: Request) {
   const payload = await request.json().catch(() => null);
   const parsed = validateLead(payload);
@@ -25,6 +31,7 @@ export async function POST(request: Request) {
   const ipCountry = request.headers.get("x-vercel-ip-country")?.toUpperCase();
   const ipRegion = request.headers.get("x-vercel-ip-country-region")?.toUpperCase();
   const ipTimezone = validTimezone(request.headers.get("x-vercel-ip-timezone"));
+  const ipAddress = validIpAddress(request.headers.get("x-forwarded-for"));
   const browserTimezone = validTimezone(parsed.data.browserTimezone);
 
   if (ipCountry && ipCountry !== "US") {
@@ -32,6 +39,7 @@ export async function POST(request: Request) {
       country: ipCountry,
       region: ipRegion || "unknown",
       timezone: ipTimezone || browserTimezone || "unknown",
+      ipAddress: ipAddress || "unknown",
     });
     return NextResponse.json(
       { error: "This service is currently available only in the United States." },
@@ -45,10 +53,17 @@ export async function POST(request: Request) {
       region: ipRegion || "unknown",
       ipTimezone,
       browserTimezone,
+      ipAddress: ipAddress || "unknown",
     });
   }
 
-  let lead = { ...parsed.data, timezone: ipTimezone || browserTimezone };
+  let lead = {
+    ...parsed.data,
+    timezone: ipTimezone || browserTimezone,
+    ipAddress,
+    ipCountry,
+    ipRegion,
+  };
   try {
     const validatedAddress = await validateAddressWithGoogle({
       address: lead.address,
@@ -97,3 +112,4 @@ export async function POST(request: Request) {
     consentTimestamp,
   });
 }
+
