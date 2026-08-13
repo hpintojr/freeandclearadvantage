@@ -91,7 +91,8 @@ function mapLoanPurpose(debtTypes: string[]) {
 
 async function updateLoanPurpose(
   auth: { accessToken: string; instanceUrl: string },
-  leadId: string,
+  leadId: string | undefined,
+  email: string,
   loanPurpose: string,
 ) {
   const requestHeaders = { Authorization: `Bearer ${auth.accessToken}` };
@@ -106,6 +107,19 @@ async function updateLoanPurpose(
     .filter((item) => item.url && Number.isFinite(Number(item.version)))
     .sort((a, b) => Number(b.version) - Number(a.version))[0];
   if (!latest?.url) throw new Error("Salesforce API versions response was invalid.");
+
+  if (!leadId) {
+    const emailLiteral = email.replace(/\\/g, "\\\\").replace(/'/g, "\\'");
+    const query = `SELECT Id FROM Lead WHERE Email = '${emailLiteral}' ORDER BY LastModifiedDate DESC LIMIT 1`;
+    const queryResponse = await fetch(
+      `${auth.instanceUrl}${latest.url}/query?q=${encodeURIComponent(query)}`,
+      { headers: requestHeaders, cache: "no-store" },
+    );
+    if (!queryResponse.ok) throw new Error(`Salesforce Lead lookup failed: ${queryResponse.status}`);
+    const queryResult = (await queryResponse.json()) as { records?: { Id?: string }[] };
+    leadId = queryResult.records?.[0]?.Id;
+  }
+  if (!leadId) throw new Error("Salesforce Lead ID was not returned or found.");
 
   const describeResponse = await fetch(`${auth.instanceUrl}${latest.url}/sobjects/Lead/describe`, {
     headers: requestHeaders,
@@ -129,6 +143,7 @@ async function updateLoanPurpose(
     },
   );
   if (!updateResponse.ok) throw new Error(`Salesforce Loan Purpose update failed: ${updateResponse.status}`);
+  return leadId;
 }
 
 function buildDescription(lead: LeadPayload, consentTimestamp: string, consentVersion: string) {
@@ -215,7 +230,7 @@ export async function sendLeadToSalesforce(
     }
   }
 
-  if (leadId) await updateLoanPurpose(auth, leadId, loanPurpose);
+  leadId = await updateLoanPurpose(auth, leadId, lead.email, loanPurpose);
 
   return { leadId };
 }
