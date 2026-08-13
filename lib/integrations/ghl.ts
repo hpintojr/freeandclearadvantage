@@ -131,6 +131,7 @@ export async function createGhlAppointment(args: {
   startTime: string;
   endTime: string;
   title: string;
+  description?: string;
 }) {
   if (!process.env.GHL_ACCESS_TOKEN || !process.env.GHL_CALENDAR_ID || !process.env.GHL_LOCATION_ID) return null;
 
@@ -145,7 +146,11 @@ export async function createGhlAppointment(args: {
       startTime: args.startTime,
       endTime: args.endTime,
       title: args.title,
+      description: args.description,
       appointmentStatus: "confirmed",
+      assignedUserId: process.env.GHL_DEFAULT_ASSIGNED_USER_ID || "8tTyPhJCYmCqsCFvaiq6",
+      meetingLocationType: "phone",
+      overrideLocationConfig: true,
       toNotify: true,
       ignoreFreeSlotValidation: false,
     }),

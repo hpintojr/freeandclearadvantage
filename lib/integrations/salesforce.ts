@@ -16,6 +16,12 @@ type SalesforceVersion = {
   url?: string;
 };
 
+type SalesforceCreateResponse = {
+  id?: string;
+  success?: boolean;
+  errors?: unknown[];
+};
+
 type SalesforceField = {
   label?: string;
   name?: string;
@@ -55,6 +61,78 @@ async function getSalesforceAccessToken() {
     accessToken: json.access_token,
     instanceUrl: (json.instance_url || instance).replace(/\/$/, ""),
   };
+}
+
+async function getLatestSalesforceDataUrl(auth: { accessToken: string; instanceUrl: string }) {
+  const response = await fetch(`${auth.instanceUrl}/services/data/`, {
+    headers: { Authorization: `Bearer ${auth.accessToken}` },
+    cache: "no-store",
+  });
+  if (!response.ok) throw new Error(`Salesforce API versions failed: ${response.status}`);
+
+  const versions = (await response.json()) as SalesforceVersion[];
+  const latest = versions
+    .filter((item) => item.url && Number.isFinite(Number(item.version)))
+    .sort((a, b) => Number(b.version) - Number(a.version))[0];
+  if (!latest?.url) throw new Error("Salesforce API versions response was invalid.");
+  return latest.url;
+}
+
+function escapeSoqlLiteral(value: string) {
+  return value.replace(/\\/g, "\\\\").replace(/'/g, "\\'");
+}
+
+export async function createSalesforceAppointmentEvent(input: {
+  leadId: string;
+  ghlAppointmentId: string;
+  startTime: string;
+  endTime: string;
+  consumerName: string;
+}) {
+  const auth = await getSalesforceAccessToken();
+  if (!auth) return null;
+
+  const dataUrl = await getLatestSalesforceDataUrl(auth);
+  const headers = { Authorization: `Bearer ${auth.accessToken}` };
+  const assignmentEmail = (process.env.SALESFORCE_DEFAULT_ASSIGNMENT_EMAIL || "alex@advantagefirst.com").trim();
+  const emailLiteral = escapeSoqlLiteral(assignmentEmail);
+  const userQuery = `SELECT Id FROM User WHERE IsActive = true AND (Email = '${emailLiteral}' OR Username = '${emailLiteral}') ORDER BY LastLoginDate DESC NULLS LAST LIMIT 1`;
+  const userResponse = await fetch(
+    `${auth.instanceUrl}${dataUrl}/query?q=${encodeURIComponent(userQuery)}`,
+    { headers, cache: "no-store" },
+  );
+  if (!userResponse.ok) throw new Error(`Salesforce assignment user lookup failed: ${userResponse.status}`);
+  const userResult = (await userResponse.json()) as { records?: { Id?: string }[] };
+  const ownerId = userResult.records?.[0]?.Id;
+  if (!ownerId) throw new Error(`No active Salesforce user found for ${assignmentEmail}.`);
+
+  const eventResponse = await fetch(`${auth.instanceUrl}${dataUrl}/sobjects/Event`, {
+    method: "POST",
+    headers: { ...headers, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      Subject: `F&C Telephone Consultation [GHL:${input.ghlAppointmentId}]`,
+      WhoId: input.leadId,
+      OwnerId: ownerId,
+      StartDateTime: input.startTime,
+      EndDateTime: input.endTime,
+      Location: "Telephone",
+      Description: [
+        `Consumer: ${input.consumerName}.`,
+        `GHL appointment ID: ${input.ghlAppointmentId}.`,
+        "Initially assigned to Alex for manual distribution.",
+        "Reassign both the Lead owner and this Event owner to place it on the agent's Salesforce calendar.",
+      ].join(" "),
+    }),
+    cache: "no-store",
+  });
+  const responseText = await eventResponse.text();
+  if (!eventResponse.ok) {
+    throw new Error(`Salesforce Event create failed: ${eventResponse.status} ${responseText.slice(0, 300)}`);
+  }
+
+  const created = responseText ? (JSON.parse(responseText) as SalesforceCreateResponse) : {};
+  if (!created.id) throw new Error("Salesforce Event create response did not include an ID.");
+  return { eventId: created.id, ownerId };
 }
 
 function mapEmploymentStatus(value: string) {

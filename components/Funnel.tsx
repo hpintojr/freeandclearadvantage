@@ -77,6 +77,7 @@ export default function Funnel() {
         debt: String(form.debtAmount),
       });
       if (data.ghlContactId) params.set("contactId", data.ghlContactId);
+      if (data.salesforceLeadId) params.set("salesforceLeadId", data.salesforceLeadId);
       if (data.demoMode) params.set("demo", "1");
       router.push(`/results?${params.toString()}`);
     } catch (err) {

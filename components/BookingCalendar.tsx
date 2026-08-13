@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 
-export default function BookingCalendar({ contactId, firstName, demoMode }: { contactId: string; firstName: string; demoMode: boolean }) {
+export default function BookingCalendar({ contactId, salesforceLeadId, firstName, demoMode }: { contactId: string; salesforceLeadId: string; firstName: string; demoMode: boolean }) {
   const [slots, setSlots] = useState<Record<string,string[]>>({});
   const [selectedDate, setSelectedDate] = useState("");
   const [loading, setLoading] = useState(true);
@@ -38,14 +38,14 @@ export default function BookingCalendar({ contactId, firstName, demoMode }: { co
   async function book(startTime: string) {
     setMessage("");
     if (!contactId) {
-      setMessage("This is sample availability. Connect the HighLevel location, contact integration, and round-robin calendar to create live appointments.");
+      setMessage("This is sample availability. Connect the HighLevel location, contact integration, and appointment calendar to create live appointments.");
       return;
     }
 
     setBooking(startTime);
     try {
       const normalized = startTime.includes("Z") || /[+-]\d\d:\d\d$/.test(startTime) ? new Date(startTime).toISOString() : new Date(`${startTime}-07:00`).toISOString();
-      const response = await fetch("/api/booking", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ contactId, startTime: normalized, name: firstName }) });
+      const response = await fetch("/api/booking", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ contactId, salesforceLeadId, startTime: normalized, name: firstName }) });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Unable to book that time.");
       setMessage(data.demoMode || demoMode ? "Preview booking saved for this demo. Connect the GHL calendar credentials to create live appointments." : `You’re booked for ${labelDate(selectedDate)} at ${labelTime(startTime)}. We’ll send confirmation details shortly.`);
@@ -58,6 +58,6 @@ export default function BookingCalendar({ contactId, firstName, demoMode }: { co
     <div className="date-row">{dates.map((date) => <button key={date} className={date===selectedDate?"date-chip active":"date-chip"} onClick={() => setSelectedDate(date)}>{labelDate(date)}</button>)}</div>
     {daySlots.length ? <div className="slot-grid">{daySlots.map((slot) => <button key={slot} className="time-slot" disabled={booking===slot} onClick={() => book(slot)}>{booking===slot?"Booking…":labelTime(slot)}</button>)}</div> : <p>No times are available on this date. Please choose another day or call us.</p>}
     {message && <div className="booking-message">{message}</div>}
-    <p className="microcopy center">Consultations are 60 minutes with available start times every 30 minutes from 9:00 AM through 5:30 PM Pacific, so the final appointment ends at 6:30 PM. For a hard cap of five simultaneous consultations, keep the HighLevel Round Robin calendar limited to five eligible team members with one active appointment per member.</p>
+    <p className="microcopy center">Consultations are 60-minute telephone appointments with available start times every 30 minutes from 9:00 AM through 5:30 PM Pacific. Your appointment is first routed to the manager, who assigns an available specialist.</p>
   </div>;
 }
