@@ -1,6 +1,3 @@
-Exit code: 0
-Wall time: 0.2 seconds
-Output:
 import type { LeadPayload } from "../types";
 
 const DEFAULT_INSTANCE_URL = "https://customer-ruby-1712.my.salesforce.com";
