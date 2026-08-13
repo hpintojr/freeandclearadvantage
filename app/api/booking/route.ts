@@ -28,6 +28,10 @@ export async function POST(request: Request) {
       description: "One-hour telephone consultation. Initially assigned to Alex for manual agent distribution.",
     })) as { id?: string } | null;
     const bookingId = appointment?.id || crypto.randomUUID();
+    // Give GHL time to persist the initial `new` event before transitioning it.
+    // Without this pause, its workflow engine can collapse both writes and miss
+    // the status-change trigger entirely.
+    await new Promise((resolve) => setTimeout(resolve, 1500));
     await updateGhlAppointment(bookingId, { appointmentStatus: "confirmed" });
     let opportunityId: string | undefined;
     try {
