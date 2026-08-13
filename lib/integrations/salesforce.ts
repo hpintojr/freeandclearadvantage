@@ -21,7 +21,7 @@ type SalesforceField = {
   name?: string;
   updateable?: boolean;
   type?: string;
-  picklistValues?: { active?: boolean; value?: string }[];
+  picklistValues?: { active?: boolean; label?: string; value?: string }[];
 };
 
 async function getSalesforceAccessToken() {
@@ -91,11 +91,22 @@ function mapLoanPurpose(debtTypes: string[]) {
   }
 }
 
-async function updateLoanPurpose(
+function normalizeFieldIdentifier(value: string | undefined) {
+  return (value || "").trim().toLowerCase().replace(/[^a-z0-9]/g, "");
+}
+
+function isLoanField(field: SalesforceField, identifier: "loanpurpose" | "loanamount") {
+  const label = normalizeFieldIdentifier(field.label);
+  const name = normalizeFieldIdentifier(field.name);
+  return label === identifier || name.includes(identifier);
+}
+
+async function updateLoanFields(
   auth: { accessToken: string; instanceUrl: string },
   leadId: string | undefined,
   email: string,
   loanPurpose: string,
+  loanAmount: number,
 ) {
   const requestHeaders = { Authorization: `Bearer ${auth.accessToken}` };
   const versionsResponse = await fetch(`${auth.instanceUrl}/services/data/`, {
@@ -130,43 +141,65 @@ async function updateLoanPurpose(
   if (!describeResponse.ok) throw new Error(`Salesforce Lead describe failed: ${describeResponse.status}`);
 
   const describe = (await describeResponse.json()) as { fields?: SalesforceField[] };
-  const fields = (describe.fields || []).filter((item) => {
-    if (!item.updateable || item.label?.trim().toLowerCase() !== "loan purpose" || !item.name) {
-      return false;
+  const allFields = describe.fields || [];
+  const purposeFields = allFields.flatMap((field) => {
+    if (!field.name || !isLoanField(field, "loanpurpose")) return [];
+    if (field.type !== "picklist" && field.type !== "multipicklist") {
+      return [{ field, value: loanPurpose }];
     }
 
-    // Duplicate custom fields can share the same label. Only include picklists that
-    // accept the mapped value; text fields can safely receive the same value too.
-    if (item.type !== "picklist" && item.type !== "multipicklist") return true;
-    return item.picklistValues?.some((option) => option.active && option.value === loanPurpose) ?? false;
+    const compatibleValue = field.picklistValues?.find(
+      (option) =>
+        option.active &&
+        [option.label, option.value].some(
+          (candidate) => candidate?.trim().toLowerCase() === loanPurpose.trim().toLowerCase(),
+        ),
+    )?.value;
+    return compatibleValue ? [{ field, value: compatibleValue }] : [];
   });
-  if (!fields.length) {
-    throw new Error("Salesforce Loan Purpose field was not found, updateable, or compatible.");
+  const amountFields = allFields
+    .filter((field) => field.name && isLoanField(field, "loanamount"))
+    .map((field) => ({ field, value: loanAmount }));
+
+  if (!purposeFields.length) throw new Error("Salesforce Loan Purpose field was not found or compatible.");
+  if (!amountFields.length) throw new Error("Salesforce Loan Amount field was not found.");
+
+  // Duplicate custom fields can share a label. Update each candidate separately so
+  // one inaccessible legacy field cannot prevent the visible field from saving.
+  for (const candidate of [...purposeFields, ...amountFields]) {
+    if (!candidate.field.updateable || !candidate.field.name) continue;
+    const updateResponse = await fetch(
+      `${auth.instanceUrl}${latest.url}/sobjects/Lead/${encodeURIComponent(leadId)}`,
+      {
+        method: "PATCH",
+        headers: { ...requestHeaders, "Content-Type": "application/json" },
+        body: JSON.stringify({ [candidate.field.name]: candidate.value }),
+        cache: "no-store",
+      },
+    );
+    if (!updateResponse.ok && updateResponse.status !== 400 && updateResponse.status !== 403) {
+      throw new Error(`Salesforce loan field update failed: ${updateResponse.status}`);
+    }
   }
 
-  const updateBody = Object.fromEntries(fields.map((field) => [field.name as string, loanPurpose]));
-  const updateResponse = await fetch(
-    `${auth.instanceUrl}${latest.url}/sobjects/Lead/${encodeURIComponent(leadId)}`,
-    {
-      method: "PATCH",
-      headers: { ...requestHeaders, "Content-Type": "application/json" },
-      body: JSON.stringify(updateBody),
-      cache: "no-store",
-    },
-  );
-  if (!updateResponse.ok) throw new Error(`Salesforce Loan Purpose update failed: ${updateResponse.status}`);
-
-  const verifyQuery = `SELECT ${fields.map((field) => field.name).join(", ")} FROM Lead WHERE Id = '${leadId}' LIMIT 1`;
+  const fieldsToVerify = [...purposeFields, ...amountFields].map(({ field }) => field.name as string);
+  const verifyQuery = `SELECT ${fieldsToVerify.join(", ")} FROM Lead WHERE Id = '${leadId}' LIMIT 1`;
   const verifyResponse = await fetch(
     `${auth.instanceUrl}${latest.url}/query?q=${encodeURIComponent(verifyQuery)}`,
     { headers: requestHeaders, cache: "no-store" },
   );
-  if (!verifyResponse.ok) throw new Error(`Salesforce Loan Purpose verification failed: ${verifyResponse.status}`);
+  if (!verifyResponse.ok) throw new Error(`Salesforce loan field verification failed: ${verifyResponse.status}`);
 
   const verifyResult = (await verifyResponse.json()) as { records?: Record<string, unknown>[] };
   const savedRecord = verifyResult.records?.[0];
-  const allSaved = fields.every((field) => field.name && savedRecord?.[field.name] === loanPurpose);
-  if (!allSaved) throw new Error("Salesforce Loan Purpose update could not be verified.");
+  const purposeSaved = purposeFields.some(
+    ({ field, value }) => field.name && savedRecord?.[field.name] === value,
+  );
+  const amountSaved = amountFields.some(
+    ({ field }) => field.name && Number(savedRecord?.[field.name]) === loanAmount,
+  );
+  if (!purposeSaved) throw new Error("Salesforce Loan Purpose update could not be verified.");
+  if (!amountSaved) throw new Error("Salesforce Loan Amount update could not be verified.");
   return leadId;
 }
 
@@ -228,6 +261,7 @@ export async function sendLeadToSalesforce(
     zipCode: lead.zip,
     applicantDOB: lead.dob,
     debtAmount: lead.debtAmount,
+    loanAmount: lead.debtAmount,
     employmentStatus: mapEmploymentStatus(lead.employment),
     loanPurpose,
   };
@@ -258,7 +292,7 @@ export async function sendLeadToSalesforce(
     }
   }
 
-  leadId = await updateLoanPurpose(auth, leadId, lead.email, loanPurpose);
+  leadId = await updateLoanFields(auth, leadId, lead.email, loanPurpose, lead.debtAmount);
 
   return { leadId };
 }
