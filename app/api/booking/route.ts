@@ -28,6 +28,7 @@ export async function POST(request: Request) {
       description: "One-hour telephone consultation. Initially assigned to Alex for manual agent distribution.",
     })) as { id?: string } | null;
     const bookingId = appointment?.id || crypto.randomUUID();
+    await updateGhlAppointment(bookingId, { appointmentStatus: "confirmed" });
     let opportunityId: string | undefined;
     try {
       const opportunity = await createAppointmentOpportunity({

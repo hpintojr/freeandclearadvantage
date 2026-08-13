@@ -191,7 +191,9 @@ export async function createGhlAppointment(args: {
       endTime: args.endTime,
       title: args.title,
       description: args.description,
-      appointmentStatus: "confirmed",
+      // Create as new, then explicitly confirm it in the booking route. GHL's
+      // appointment-status workflow only fires when the status actually changes.
+      appointmentStatus: "new",
       assignedUserId: process.env.GHL_DEFAULT_ASSIGNED_USER_ID || "8tTyPhJCYmCqsCFvaiq6",
       meetingLocationType: "phone",
       overrideLocationConfig: true,
