@@ -26,6 +26,8 @@ export type LeadPayload = {
   dob: string;
   phone: string;
   tcpaConsent: boolean;
+  browserTimezone?: string;
+  timezone?: string;
   source?: string;
   campaign?: string;
 };

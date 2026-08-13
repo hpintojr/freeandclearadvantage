@@ -175,6 +175,7 @@ function buildDescription(lead: LeadPayload, consentTimestamp: string, consentVe
     "Free & Clear Advantage website lead.",
     `Debt types: ${lead.debtTypes.join(", ") || "Not provided"}.`,
     `Payment status: ${lead.paymentStatus || "Not provided"}.`,
+    `Consumer timezone: ${lead.timezone || "Not available"}.`,
     `Automated/prerecorded/AI contact consent: ${lead.tcpaConsent ? "YES" : "NO"}.`,
     `Submission/consent-decision timestamp: ${consentTimestamp}.`,
     `Disclosure version: ${consentVersion}.`,
@@ -258,4 +259,3 @@ export async function sendLeadToSalesforce(
 
   return { leadId };
 }
-

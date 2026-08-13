@@ -63,7 +63,11 @@ export default function Funnel() {
       const response = await fetch("/api/lead", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...form, source: "Free & Clear Advantage Web Funnel" }),
+        body: JSON.stringify({
+          ...form,
+          browserTimezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+          source: "Free & Clear Advantage Web Funnel",
+        }),
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Unable to submit your request.");
