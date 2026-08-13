@@ -187,7 +187,8 @@ export async function getSalesforceDncLeads(options: { fullBackfill?: boolean } 
   const auth = await getSalesforceAccessToken();
   if (!auth) return { records: [] as SalesforceDncLead[], totalSize: 0 };
   const dataUrl = await getLatestSalesforceDataUrl(auth);
-  const recentFilter = options.fullBackfill ? "" : "AND LastModifiedDate = LAST_N_HOURS:26";
+  const recentCutoff = new Date(Date.now() - 26 * 60 * 60 * 1000).toISOString().replace(".000", "");
+  const recentFilter = options.fullBackfill ? "" : `AND LastModifiedDate >= ${recentCutoff}`;
   const query = [
     "SELECT Id, FirstName, LastName, Email, Phone, MobilePhone, DNC__c, LastModifiedDate",
     "FROM Lead",
