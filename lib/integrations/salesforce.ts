@@ -34,6 +34,17 @@ export type SalesforceAppointmentEvent = {
   IsDeleted?: boolean;
 };
 
+export type SalesforceDncLead = {
+  Id: string;
+  FirstName?: string;
+  LastName?: string;
+  Email?: string;
+  Phone?: string;
+  MobilePhone?: string;
+  DNC__c?: boolean;
+  LastModifiedDate?: string;
+};
+
 type SalesforceField = {
   label?: string;
   name?: string;
@@ -170,6 +181,31 @@ export async function getSalesforceAppointmentEvents() {
   if (!response.ok) throw new Error(`Salesforce appointment query failed: ${response.status} ${body.slice(0, 300)}`);
   const json = (body ? JSON.parse(body) : {}) as { records?: SalesforceAppointmentEvent[] };
   return json.records || [];
+}
+
+export async function getSalesforceDncLeads(options: { fullBackfill?: boolean } = {}) {
+  const auth = await getSalesforceAccessToken();
+  if (!auth) return { records: [] as SalesforceDncLead[], totalSize: 0 };
+  const dataUrl = await getLatestSalesforceDataUrl(auth);
+  const recentFilter = options.fullBackfill ? "" : "AND LastModifiedDate = LAST_N_HOURS:26";
+  const query = [
+    "SELECT Id, FirstName, LastName, Email, Phone, MobilePhone, DNC__c, LastModifiedDate",
+    "FROM Lead",
+    "WHERE DNC__c = true",
+    recentFilter,
+    "ORDER BY LastModifiedDate DESC",
+    "LIMIT 250",
+  ]
+    .filter(Boolean)
+    .join(" ");
+  const response = await fetch(
+    `${auth.instanceUrl}${dataUrl}/query?q=${encodeURIComponent(query)}`,
+    { headers: { Authorization: `Bearer ${auth.accessToken}` }, cache: "no-store" },
+  );
+  const body = await response.text();
+  if (!response.ok) throw new Error(`Salesforce DNC query failed: ${response.status} ${body.slice(0, 300)}`);
+  const json = (body ? JSON.parse(body) : {}) as { records?: SalesforceDncLead[]; totalSize?: number };
+  return { records: json.records || [], totalSize: json.totalSize || 0 };
 }
 
 export async function updateSalesforceAppointmentEvent(

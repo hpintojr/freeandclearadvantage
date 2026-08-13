@@ -37,6 +37,13 @@ export type GhlOpportunity = {
 };
 
 export type GhlUser = { id?: string; email?: string; name?: string };
+export type GhlContact = {
+  id?: string;
+  email?: string;
+  phone?: string;
+  dnd?: boolean;
+  tags?: string[];
+};
 
 function headers(version: string) {
   return {
@@ -209,6 +216,55 @@ async function ghlJson<T>(path: string, init: RequestInit = {}, version = "2021-
     throw new Error(`GHL ${init.method || "GET"} ${path} failed: ${response.status} ${body.slice(0, 300)}`);
   }
   return (body ? JSON.parse(body) : {}) as T;
+}
+
+function normalizeUsPhone(value: string | undefined) {
+  const digits = (value || "").replace(/\D/g, "");
+  if (digits.length === 10) return `+1${digits}`;
+  if (digits.length === 11 && digits.startsWith("1")) return `+${digits}`;
+  return value?.trim() || undefined;
+}
+
+export async function findGhlContactByEmailOrPhone(email?: string, phone?: string) {
+  if (!process.env.GHL_LOCATION_ID) return null;
+  const candidates: Record<string, string>[] = [];
+  if (email?.trim()) candidates.push({ email: email.trim().toLowerCase() });
+  const normalizedPhone = normalizeUsPhone(phone);
+  if (normalizedPhone) candidates.push({ phone: normalizedPhone });
+
+  for (const candidate of candidates) {
+    const url = new URL(`${baseUrl}/contacts/search/duplicate`);
+    url.searchParams.set("locationId", process.env.GHL_LOCATION_ID);
+    for (const [key, value] of Object.entries(candidate)) url.searchParams.set(key, value);
+    const response = await fetch(url, {
+      headers: headers("v3"),
+      cache: "no-store",
+    });
+    if (response.status === 404) continue;
+    const body = await response.text();
+    if (!response.ok) {
+      throw new Error(`GHL duplicate contact search failed: ${response.status} ${body.slice(0, 300)}`);
+    }
+    const json = (body ? JSON.parse(body) : {}) as { contact?: GhlContact } & GhlContact;
+    const contact = json.contact || json;
+    if (contact.id) return contact;
+  }
+  return null;
+}
+
+export async function applySalesforceDncToGhl(contactId: string) {
+  const contactVersion = "v3";
+  const updated = await ghlJson<{ contact?: GhlContact }>(
+    `/contacts/${encodeURIComponent(contactId)}`,
+    { method: "PUT", body: JSON.stringify({ dnd: true }) },
+    contactVersion,
+  );
+  await ghlJson(
+    `/contacts/${encodeURIComponent(contactId)}/tags`,
+    { method: "POST", body: JSON.stringify({ tags: ["salesforce-dnc"] }) },
+    contactVersion,
+  );
+  return updated.contact || null;
 }
 
 export async function getGhlAppointment(appointmentId: string) {

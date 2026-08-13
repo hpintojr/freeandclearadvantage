@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { syncAppointments } from "@/lib/integrations/appointment-sync";
+import { syncSalesforceDnc } from "@/lib/integrations/dnc-sync";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -12,8 +13,13 @@ export async function GET(request: Request) {
   }
 
   try {
-    const result = await syncAppointments();
-    return NextResponse.json({ ok: result.errors.length === 0, ...result }, { status: result.errors.length ? 207 : 200 });
+    const fullBackfill = new URL(request.url).searchParams.get("dncBackfill") === "1";
+    const [appointments, dnc] = await Promise.all([
+      syncAppointments(),
+      syncSalesforceDnc({ fullBackfill }),
+    ]);
+    const ok = appointments.errors.length === 0 && dnc.errors.length === 0;
+    return NextResponse.json({ ok, appointments, dnc }, { status: ok ? 200 : 207 });
   } catch (error) {
     console.error("appointment sync failed", error);
     return NextResponse.json(
