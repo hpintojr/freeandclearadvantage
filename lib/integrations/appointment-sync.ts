@@ -109,6 +109,15 @@ export async function syncAppointments() {
         }
       }
 
+      // The manager hands an appointment off by reassigning the Salesforce
+      // Event. Push that owner onto the GHL appointment itself, not just the
+      // opportunity — otherwise the appointment stays with the manager forever
+      // and any workflow keyed on its assigned user never fires, so the agent
+      // is never notified.
+      if (ghlUser?.id && ghlUser.id !== appointment.assignedUserId) {
+        ghlChanges.assignedUserId = ghlUser.id;
+      }
+
       if (Object.keys(ghlChanges).length) {
         await updateGhlAppointment(appointmentId, ghlChanges);
         results.updatedGhl += 1;
