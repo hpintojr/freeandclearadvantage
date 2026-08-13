@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
 
 type Confirmation = {
   bookingId: string;
@@ -24,23 +24,25 @@ function storageKey(contactId: string) {
   return `fca_booking_confirmation_${contactId || "preview"}`;
 }
 
-function readStoredConfirmation(contactId: string): Confirmation | null {
-  if (typeof window === "undefined") return null;
+function parseStoredConfirmation(raw: string | null): Confirmation | null {
+  if (!raw) return null;
   try {
-    const raw = window.sessionStorage.getItem(storageKey(contactId));
-    if (!raw) return null;
     const parsed = JSON.parse(raw) as Confirmation;
     if (!parsed?.bookingId || !parsed.startTime) return null;
-    // Drop a stale confirmation once the appointment itself has passed.
-    if (new Date(parsed.endTime).getTime() < Date.now()) {
-      window.sessionStorage.removeItem(storageKey(contactId));
-      return null;
-    }
+    // Ignore a stale confirmation once the appointment itself has passed.
+    if (new Date(parsed.endTime).getTime() < Date.now()) return null;
     return parsed;
   } catch {
     return null;
   }
 }
+
+/**
+ * Read through useSyncExternalStore rather than an effect: it gives the server
+ * a defined snapshot (null) and hands the real value over at hydration, without
+ * calling setState synchronously inside an effect.
+ */
+const neverChanges = () => () => {};
 
 export default function BookingCalendar({ contactId, salesforceLeadId, firstName, demoMode }: { contactId: string; salesforceLeadId: string; firstName: string; demoMode: boolean }) {
   const [slots, setSlots] = useState<Record<string,string[]>>({});
@@ -48,21 +50,26 @@ export default function BookingCalendar({ contactId, salesforceLeadId, firstName
   const [loading, setLoading] = useState(true);
   const [booking, setBooking] = useState("");
   const [message, setMessage] = useState("");
-  const [confirmation, setConfirmation] = useState<Confirmation | null>(null);
-  const [restoring, setRestoring] = useState(true);
+  const [justBooked, setJustBooked] = useState<Confirmation | null>(null);
 
-  // Restore before the first paint of the grid so a refreshed page never
-  // flashes the booking options to someone who has already booked.
-  useEffect(() => {
-    setConfirmation(readStoredConfirmation(contactId));
-    setRestoring(false);
-  }, [contactId]);
+  const storedRaw = useSyncExternalStore(
+    neverChanges,
+    () => {
+      try { return window.sessionStorage.getItem(storageKey(contactId)); } catch { return null; }
+    },
+    () => null,
+  );
+  // A refreshed page restores the confirmation, so the consumer never lands
+  // back on the slot grid and books a second appointment. Memoised so the
+  // object identity is stable — the availability effect depends on it.
+  const stored = useMemo(() => parseStoredConfirmation(storedRaw), [storedRaw]);
+  const confirmation = justBooked ?? stored;
 
   useEffect(() => {
-    if (restoring || confirmation) {
-      setLoading(false);
-      return;
-    }
+    // No setState in the effect body — availability is simply not fetched once
+    // an appointment exists, and the confirmation card renders before the
+    // loading branch is ever reached.
+    if (confirmation) return;
     let cancelled = false;
     const startDate = new Date().toISOString().slice(0,10);
     fetch(`/api/booking/availability?startDate=${startDate}&timezone=${encodeURIComponent(timezone)}`)
@@ -77,7 +84,7 @@ export default function BookingCalendar({ contactId, salesforceLeadId, firstName
       .catch((e) => { if (!cancelled) setMessage(e.message || "Unable to load availability."); })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
-  }, [restoring, confirmation]);
+  }, [confirmation]);
 
   const dates = useMemo(() => Object.keys(slots).sort().slice(0,7), [slots]);
   const daySlots = selectedDate ? slots[selectedDate] || [] : [];
@@ -124,7 +131,7 @@ export default function BookingCalendar({ contactId, salesforceLeadId, firstName
         icsUrl: data.icsUrl || null,
         demoMode: Boolean(data.demoMode || demoMode),
       };
-      setConfirmation(confirmed);
+      setJustBooked(confirmed);
       try { window.sessionStorage.setItem(storageKey(contactId), JSON.stringify(confirmed)); } catch { /* private browsing — confirmation still shows for this view */ }
     } catch (e) { setMessage(e instanceof Error ? e.message : "Unable to book that time."); }
     finally { setBooking(""); }
@@ -141,8 +148,6 @@ export default function BookingCalendar({ contactId, salesforceLeadId, firstName
       {demoMode ? <div className="demo-note">Preview mode: a live HighLevel contact/calendar connection is not available yet, so the calendar below shows sample availability.</div> : null}
     </>
   );
-
-  if (restoring) return <>{schedulingHeader}<div className="calendar-loading">Loading…</div></>;
 
   if (confirmation) {
     return (
