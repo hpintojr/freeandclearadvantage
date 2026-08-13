@@ -277,7 +277,12 @@ export async function findAppointmentOpportunity(appointmentId: string, contactI
   if (!response.ok) throw new Error(`GHL opportunity search failed: ${response.status} ${body.slice(0, 300)}`);
   const json = (body ? JSON.parse(body) : {}) as { opportunities?: GhlOpportunity[] };
   const marker = `[GHL:${appointmentId}]`;
-  return json.opportunities?.find((opportunity) => opportunity.name?.includes(marker)) || null;
+  const opportunities = json.opportunities || [];
+  return (
+    opportunities.find((opportunity) => opportunity.name?.includes(marker)) ||
+    (contactId ? opportunities.find((opportunity) => opportunity.contactId === contactId) : null) ||
+    null
+  );
 }
 
 export async function createAppointmentOpportunity(args: {
