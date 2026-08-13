@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { addMinutesIso, slotDurationMinutes } from "@/lib/booking";
-import { createGhlAppointment } from "@/lib/integrations/ghl";
+import { createAppointmentOpportunity, createGhlAppointment } from "@/lib/integrations/ghl";
 import { createSalesforceAppointmentEvent } from "@/lib/integrations/salesforce";
 
 export const runtime = "nodejs";
@@ -24,6 +24,18 @@ export async function POST(request: Request) {
       description: "One-hour telephone consultation. Initially assigned to Alex for manual agent distribution.",
     })) as { id?: string } | null;
     const bookingId = appointment?.id || crypto.randomUUID();
+    let opportunityId: string | undefined;
+    try {
+      const opportunity = await createAppointmentOpportunity({
+        appointmentId: bookingId,
+        contactId: body.contactId,
+        consumerName: body.name || "Consumer",
+        assignedUserId: process.env.GHL_DEFAULT_ASSIGNED_USER_ID,
+      });
+      opportunityId = opportunity?.id;
+    } catch (opportunityError) {
+      console.error("GHL appointment opportunity sync error", opportunityError);
+    }
     let salesforceEventId: string | undefined;
     let salesforceSynced = false;
     if (body.salesforceLeadId) {
@@ -41,7 +53,7 @@ export async function POST(request: Request) {
         console.error("Salesforce appointment event sync error", salesforceError);
       }
     }
-    return NextResponse.json({ bookingId, salesforceEventId, salesforceSynced, demoMode: false });
+    return NextResponse.json({ bookingId, opportunityId, salesforceEventId, salesforceSynced, demoMode: false });
   } catch (error) {
     console.error("booking error", error);
     return NextResponse.json({ error: "That time is no longer available. Please choose another time." }, { status: 409 });

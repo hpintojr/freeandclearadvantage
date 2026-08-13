@@ -2,6 +2,41 @@ import type { LeadPayload } from "../types";
 
 const baseUrl = "https://services.leadconnectorhq.com";
 const websiteSource = "F&C-Website";
+const appointmentPipelineName = "F&C Appointments";
+
+export type GhlAppointment = {
+  id: string;
+  calendarId?: string;
+  locationId?: string;
+  contactId?: string;
+  assignedUserId?: string;
+  appointmentStatus?: string;
+  startTime?: string;
+  endTime?: string;
+  title?: string;
+  description?: string;
+  dateAdded?: string;
+  dateUpdated?: string;
+  updatedAt?: string;
+};
+
+type GhlPipeline = {
+  id?: string;
+  name?: string;
+  stages?: { id?: string; name?: string; position?: number }[];
+};
+
+export type GhlOpportunity = {
+  id?: string;
+  name?: string;
+  contactId?: string;
+  assignedTo?: string;
+  pipelineId?: string;
+  pipelineStageId?: string;
+  status?: string;
+};
+
+export type GhlUser = { id?: string; email?: string; name?: string };
 
 function headers(version: string) {
   return {
@@ -161,5 +196,145 @@ export async function createGhlAppointment(args: {
     throw new Error(`GHL appointment failed: ${response.status}`);
   }
   return response.json();
+}
+
+async function ghlJson<T>(path: string, init: RequestInit = {}, version = "2021-07-28") {
+  const response = await fetch(`${baseUrl}${path}`, {
+    ...init,
+    headers: { ...headers(version), ...(init.headers || {}) },
+    cache: "no-store",
+  });
+  const body = await response.text();
+  if (!response.ok) {
+    throw new Error(`GHL ${init.method || "GET"} ${path} failed: ${response.status} ${body.slice(0, 300)}`);
+  }
+  return (body ? JSON.parse(body) : {}) as T;
+}
+
+export async function getGhlAppointment(appointmentId: string) {
+  const json = await ghlJson<{ event?: GhlAppointment; appointment?: GhlAppointment } & GhlAppointment>(
+    `/calendars/events/appointments/${encodeURIComponent(appointmentId)}`,
+    {},
+    process.env.GHL_CALENDARS_API_VERSION || "v3",
+  );
+  return (json.event || json.appointment || json) as GhlAppointment;
+}
+
+export async function updateGhlAppointment(appointmentId: string, changes: Partial<GhlAppointment>) {
+  return ghlJson<{ event?: GhlAppointment; appointment?: GhlAppointment }>(
+    `/calendars/events/appointments/${encodeURIComponent(appointmentId)}`,
+    { method: "PUT", body: JSON.stringify(changes) },
+    process.env.GHL_CALENDARS_API_VERSION || "v3",
+  );
+}
+
+export async function getGhlUsers() {
+  if (!process.env.GHL_LOCATION_ID) return [];
+  const json = await ghlJson<{ users?: GhlUser[] }>(
+    `/users/?locationId=${encodeURIComponent(process.env.GHL_LOCATION_ID)}`,
+  );
+  return json.users || [];
+}
+
+export async function getAppointmentPipeline() {
+  if (!process.env.GHL_LOCATION_ID) return null;
+  const json = await ghlJson<{ pipelines?: GhlPipeline[] }>(
+    `/opportunities/pipelines?locationId=${encodeURIComponent(process.env.GHL_LOCATION_ID)}`,
+  );
+  return (
+    json.pipelines?.find((pipeline) => pipeline.name?.trim().toLowerCase() === appointmentPipelineName.toLowerCase()) ||
+    null
+  );
+}
+
+function stageByName(pipeline: GhlPipeline, name: string) {
+  return pipeline.stages?.find((stage) => stage.name?.trim().toLowerCase() === name.toLowerCase());
+}
+
+export async function findAppointmentOpportunity(appointmentId: string, contactId?: string) {
+  if (!process.env.GHL_LOCATION_ID) return null;
+  const pipeline = await getAppointmentPipeline();
+  if (!pipeline?.id) return null;
+
+  const url = new URL(`${baseUrl}/opportunities/search`);
+  url.searchParams.set("locationId", process.env.GHL_LOCATION_ID);
+  url.searchParams.set("pipelineId", pipeline.id);
+  if (contactId) url.searchParams.set("contactId", contactId);
+  url.searchParams.set("limit", "100");
+  const response = await fetch(url, {
+    headers: headers(process.env.GHL_OPPORTUNITIES_API_VERSION || "v3"),
+    cache: "no-store",
+  });
+  const body = await response.text();
+  if (!response.ok) throw new Error(`GHL opportunity search failed: ${response.status} ${body.slice(0, 300)}`);
+  const json = (body ? JSON.parse(body) : {}) as { opportunities?: GhlOpportunity[] };
+  const marker = `[GHL:${appointmentId}]`;
+  return json.opportunities?.find((opportunity) => opportunity.name?.includes(marker)) || null;
+}
+
+export async function createAppointmentOpportunity(args: {
+  appointmentId: string;
+  contactId: string;
+  consumerName: string;
+  assignedUserId?: string;
+}) {
+  if (!process.env.GHL_LOCATION_ID) return null;
+  const existing = await findAppointmentOpportunity(args.appointmentId, args.contactId);
+  if (existing) return existing;
+
+  const pipeline = await getAppointmentPipeline();
+  const stage = pipeline && stageByName(pipeline, "New Appointment");
+  if (!pipeline?.id || !stage?.id) {
+    throw new Error(`GHL pipeline "${appointmentPipelineName}" or stage "New Appointment" was not found.`);
+  }
+
+  const json = await ghlJson<{ opportunity?: GhlOpportunity }>(
+    "/opportunities/",
+    {
+      method: "POST",
+      body: JSON.stringify({
+        pipelineId: pipeline.id,
+        pipelineStageId: stage.id,
+        locationId: process.env.GHL_LOCATION_ID,
+        name: `F&C Appointment - ${args.consumerName} [GHL:${args.appointmentId}]`,
+        status: "open",
+        contactId: args.contactId,
+        assignedTo: args.assignedUserId || process.env.GHL_DEFAULT_ASSIGNED_USER_ID || "8tTyPhJCYmCqsCFvaiq6",
+        source: websiteSource,
+      }),
+    },
+    process.env.GHL_OPPORTUNITIES_API_VERSION || "v3",
+  );
+  return json.opportunity || null;
+}
+
+export async function updateAppointmentOpportunity(
+  appointmentId: string,
+  contactId: string | undefined,
+  changes: { assignedTo?: string; stageName?: string },
+) {
+  const [opportunity, pipeline] = await Promise.all([
+    findAppointmentOpportunity(appointmentId, contactId),
+    getAppointmentPipeline(),
+  ]);
+  if (!opportunity?.id || !pipeline?.id) return null;
+
+  const body: Record<string, string> = {};
+  if (changes.assignedTo) body.assignedTo = changes.assignedTo;
+  if (changes.stageName) {
+    const stage = stageByName(pipeline, changes.stageName);
+    if (!stage?.id) throw new Error(`GHL opportunity stage "${changes.stageName}" was not found.`);
+    const currentStage = pipeline.stages?.find((candidate) => candidate.id === opportunity.pipelineStageId);
+    const safeToAdvance =
+      changes.stageName !== "Assigned" ||
+      ["New Appointment", "Awaiting Agent Assignment"].includes(currentStage?.name || "");
+    if (safeToAdvance) body.pipelineStageId = stage.id;
+  }
+  if (!Object.keys(body).length) return opportunity;
+  return ghlJson<{ opportunity?: GhlOpportunity }>(
+    `/opportunities/${encodeURIComponent(opportunity.id)}`,
+    { method: "PUT", body: JSON.stringify(body) },
+    process.env.GHL_OPPORTUNITIES_API_VERSION || "v3",
+  );
 }
 

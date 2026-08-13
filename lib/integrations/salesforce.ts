@@ -22,6 +22,18 @@ type SalesforceCreateResponse = {
   errors?: unknown[];
 };
 
+export type SalesforceAppointmentEvent = {
+  Id: string;
+  Subject?: string;
+  WhoId?: string;
+  OwnerId?: string;
+  Owner?: { Email?: string; Name?: string };
+  StartDateTime?: string;
+  EndDateTime?: string;
+  LastModifiedDate?: string;
+  IsDeleted?: boolean;
+};
+
 type SalesforceField = {
   label?: string;
   name?: string;
@@ -133,6 +145,65 @@ export async function createSalesforceAppointmentEvent(input: {
   const created = responseText ? (JSON.parse(responseText) as SalesforceCreateResponse) : {};
   if (!created.id) throw new Error("Salesforce Event create response did not include an ID.");
   return { eventId: created.id, ownerId };
+}
+
+export async function getSalesforceAppointmentEvents() {
+  const auth = await getSalesforceAccessToken();
+  if (!auth) return [];
+  const dataUrl = await getLatestSalesforceDataUrl(auth);
+  const now = Date.now();
+  const from = new Date(now - 30 * 24 * 60 * 60 * 1000).toISOString().replace(".000", "");
+  const until = new Date(now + 180 * 24 * 60 * 60 * 1000).toISOString().replace(".000", "");
+  const query = [
+    "SELECT Id, Subject, WhoId, OwnerId, Owner.Email, Owner.Name, StartDateTime, EndDateTime, LastModifiedDate, IsDeleted",
+    "FROM Event",
+    "WHERE Subject LIKE 'F&C Telephone Consultation [GHL:%'",
+    `AND StartDateTime >= ${from}`,
+    `AND StartDateTime <= ${until}`,
+    "ORDER BY StartDateTime ASC",
+  ].join(" ");
+  const response = await fetch(
+    `${auth.instanceUrl}${dataUrl}/queryAll?q=${encodeURIComponent(query)}`,
+    { headers: { Authorization: `Bearer ${auth.accessToken}` }, cache: "no-store" },
+  );
+  const body = await response.text();
+  if (!response.ok) throw new Error(`Salesforce appointment query failed: ${response.status} ${body.slice(0, 300)}`);
+  const json = (body ? JSON.parse(body) : {}) as { records?: SalesforceAppointmentEvent[] };
+  return json.records || [];
+}
+
+export async function updateSalesforceAppointmentEvent(
+  eventId: string,
+  changes: { StartDateTime?: string; EndDateTime?: string },
+) {
+  const auth = await getSalesforceAccessToken();
+  if (!auth) return null;
+  const dataUrl = await getLatestSalesforceDataUrl(auth);
+  const response = await fetch(`${auth.instanceUrl}${dataUrl}/sobjects/Event/${encodeURIComponent(eventId)}`, {
+    method: "PATCH",
+    headers: { Authorization: `Bearer ${auth.accessToken}`, "Content-Type": "application/json" },
+    body: JSON.stringify(changes),
+    cache: "no-store",
+  });
+  const body = await response.text();
+  if (!response.ok) throw new Error(`Salesforce Event update failed: ${response.status} ${body.slice(0, 300)}`);
+  return true;
+}
+
+export async function deleteSalesforceAppointmentEvent(eventId: string) {
+  const auth = await getSalesforceAccessToken();
+  if (!auth) return null;
+  const dataUrl = await getLatestSalesforceDataUrl(auth);
+  const response = await fetch(`${auth.instanceUrl}${dataUrl}/sobjects/Event/${encodeURIComponent(eventId)}`, {
+    method: "DELETE",
+    headers: { Authorization: `Bearer ${auth.accessToken}` },
+    cache: "no-store",
+  });
+  if (!response.ok && response.status !== 404) {
+    const body = await response.text();
+    throw new Error(`Salesforce Event delete failed: ${response.status} ${body.slice(0, 300)}`);
+  }
+  return true;
 }
 
 function mapEmploymentStatus(value: string) {
