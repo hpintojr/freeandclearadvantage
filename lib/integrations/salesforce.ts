@@ -11,6 +11,17 @@ type SalesforceTokenResponse = {
   signature?: string;
 };
 
+type SalesforceVersion = {
+  version?: string;
+  url?: string;
+};
+
+type SalesforceField = {
+  label?: string;
+  name?: string;
+  updateable?: boolean;
+};
+
 async function getSalesforceAccessToken() {
   const clientId = process.env.SALESFORCE_CLIENT_ID?.trim();
   const clientSecret = process.env.SALESFORCE_CLIENT_SECRET?.trim();
@@ -78,6 +89,48 @@ function mapLoanPurpose(debtTypes: string[]) {
   }
 }
 
+async function updateLoanPurpose(
+  auth: { accessToken: string; instanceUrl: string },
+  leadId: string,
+  loanPurpose: string,
+) {
+  const requestHeaders = { Authorization: `Bearer ${auth.accessToken}` };
+  const versionsResponse = await fetch(`${auth.instanceUrl}/services/data/`, {
+    headers: requestHeaders,
+    cache: "no-store",
+  });
+  if (!versionsResponse.ok) throw new Error(`Salesforce API versions failed: ${versionsResponse.status}`);
+
+  const versions = (await versionsResponse.json()) as SalesforceVersion[];
+  const latest = versions
+    .filter((item) => item.url && Number.isFinite(Number(item.version)))
+    .sort((a, b) => Number(b.version) - Number(a.version))[0];
+  if (!latest?.url) throw new Error("Salesforce API versions response was invalid.");
+
+  const describeResponse = await fetch(`${auth.instanceUrl}${latest.url}/sobjects/Lead/describe`, {
+    headers: requestHeaders,
+    cache: "no-store",
+  });
+  if (!describeResponse.ok) throw new Error(`Salesforce Lead describe failed: ${describeResponse.status}`);
+
+  const describe = (await describeResponse.json()) as { fields?: SalesforceField[] };
+  const field = describe.fields?.find(
+    (item) => item.updateable && item.label?.trim().toLowerCase() === "loan purpose" && item.name,
+  );
+  if (!field?.name) throw new Error("Salesforce Loan Purpose field was not found or is not updateable.");
+
+  const updateResponse = await fetch(
+    `${auth.instanceUrl}${latest.url}/sobjects/Lead/${encodeURIComponent(leadId)}`,
+    {
+      method: "PATCH",
+      headers: { ...requestHeaders, "Content-Type": "application/json" },
+      body: JSON.stringify({ [field.name]: loanPurpose }),
+      cache: "no-store",
+    },
+  );
+  if (!updateResponse.ok) throw new Error(`Salesforce Loan Purpose update failed: ${updateResponse.status}`);
+}
+
 function buildDescription(lead: LeadPayload, consentTimestamp: string, consentVersion: string) {
   return [
     "Free & Clear Advantage website lead.",
@@ -118,6 +171,7 @@ export async function sendLeadToSalesforce(
   const source = configuredSource === "Website" ? DEFAULT_SOURCE : configuredSource;
   const endpoint = `${auth.instanceUrl}/services/apexrest/api/leads/${encodeURIComponent(source)}`;
 
+  const loanPurpose = mapLoanPurpose(lead.debtTypes);
   const payload = {
     firstName: lead.firstName,
     lastName: lead.lastName,
@@ -132,7 +186,7 @@ export async function sendLeadToSalesforce(
     applicantDOB: lead.dob,
     debtAmount: lead.debtAmount,
     employmentStatus: mapEmploymentStatus(lead.employment),
-    loanPurpose: mapLoanPurpose(lead.debtTypes),
+    loanPurpose,
   };
 
   const response = await fetch(endpoint, {
@@ -160,6 +214,8 @@ export async function sendLeadToSalesforce(
       // The Apex resource may return a non-JSON success body. A 2xx response is enough to treat it as saved.
     }
   }
+
+  if (leadId) await updateLoanPurpose(auth, leadId, loanPurpose);
 
   return { leadId };
 }

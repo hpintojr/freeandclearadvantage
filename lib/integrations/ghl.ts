@@ -1,6 +1,7 @@
 import type { LeadPayload } from "../types";
 
 const baseUrl = "https://services.leadconnectorhq.com";
+const websiteSource = "F&C-Website";
 
 function headers(version: string) {
   return {
@@ -63,7 +64,7 @@ export async function sendLeadToGhl(lead: LeadPayload, consentTimestamp: string,
       postalCode: lead.zip,
       dateOfBirth: lead.dob,
       ...(lead.tcpaConsent ? {} : { dnd: true }),
-      source: lead.source || "Free & Clear Advantage Web Funnel",
+      source: websiteSource,
       customFields: customFields(lead, consentTimestamp, consentVersion),
     }),
     cache: "no-store",
@@ -74,7 +75,18 @@ export async function sendLeadToGhl(lead: LeadPayload, consentTimestamp: string,
   }
 
   const json = (await response.json()) as { contact?: { id?: string }; id?: string };
-  return { contactId: json.contact?.id || json.id };
+  const contactId = json.contact?.id || json.id;
+  if (!contactId) throw new Error("GHL contact upsert did not return a contact ID.");
+
+  const tagResponse = await fetch(`${baseUrl}/contacts/${contactId}/tags`, {
+    method: "POST",
+    headers: headers(contactsVersion),
+    body: JSON.stringify({ tags: [websiteSource] }),
+    cache: "no-store",
+  });
+  if (!tagResponse.ok) console.warn(`GHL contact tag failed: ${tagResponse.status}`);
+
+  return { contactId };
 }
 
 export async function getGhlFreeSlots(startDate: string, endDate: string, timezone: string) {
