@@ -1,3 +1,6 @@
+Exit code: 0
+Wall time: 0.2 seconds
+Output:
 import type { LeadPayload } from "../types";
 
 const DEFAULT_INSTANCE_URL = "https://customer-ruby-1712.my.salesforce.com";
@@ -20,6 +23,8 @@ type SalesforceField = {
   label?: string;
   name?: string;
   updateable?: boolean;
+  type?: string;
+  picklistValues?: { active?: boolean; value?: string }[];
 };
 
 async function getSalesforceAccessToken() {
@@ -128,21 +133,43 @@ async function updateLoanPurpose(
   if (!describeResponse.ok) throw new Error(`Salesforce Lead describe failed: ${describeResponse.status}`);
 
   const describe = (await describeResponse.json()) as { fields?: SalesforceField[] };
-  const field = describe.fields?.find(
-    (item) => item.updateable && item.label?.trim().toLowerCase() === "loan purpose" && item.name,
-  );
-  if (!field?.name) throw new Error("Salesforce Loan Purpose field was not found or is not updateable.");
+  const fields = (describe.fields || []).filter((item) => {
+    if (!item.updateable || item.label?.trim().toLowerCase() !== "loan purpose" || !item.name) {
+      return false;
+    }
 
+    // Duplicate custom fields can share the same label. Only include picklists that
+    // accept the mapped value; text fields can safely receive the same value too.
+    if (item.type !== "picklist" && item.type !== "multipicklist") return true;
+    return item.picklistValues?.some((option) => option.active && option.value === loanPurpose) ?? false;
+  });
+  if (!fields.length) {
+    throw new Error("Salesforce Loan Purpose field was not found, updateable, or compatible.");
+  }
+
+  const updateBody = Object.fromEntries(fields.map((field) => [field.name as string, loanPurpose]));
   const updateResponse = await fetch(
     `${auth.instanceUrl}${latest.url}/sobjects/Lead/${encodeURIComponent(leadId)}`,
     {
       method: "PATCH",
       headers: { ...requestHeaders, "Content-Type": "application/json" },
-      body: JSON.stringify({ [field.name]: loanPurpose }),
+      body: JSON.stringify(updateBody),
       cache: "no-store",
     },
   );
   if (!updateResponse.ok) throw new Error(`Salesforce Loan Purpose update failed: ${updateResponse.status}`);
+
+  const verifyQuery = `SELECT ${fields.map((field) => field.name).join(", ")} FROM Lead WHERE Id = '${leadId}' LIMIT 1`;
+  const verifyResponse = await fetch(
+    `${auth.instanceUrl}${latest.url}/query?q=${encodeURIComponent(verifyQuery)}`,
+    { headers: requestHeaders, cache: "no-store" },
+  );
+  if (!verifyResponse.ok) throw new Error(`Salesforce Loan Purpose verification failed: ${verifyResponse.status}`);
+
+  const verifyResult = (await verifyResponse.json()) as { records?: Record<string, unknown>[] };
+  const savedRecord = verifyResult.records?.[0];
+  const allSaved = fields.every((field) => field.name && savedRecord?.[field.name] === loanPurpose);
+  if (!allSaved) throw new Error("Salesforce Loan Purpose update could not be verified.");
   return leadId;
 }
 
@@ -234,3 +261,4 @@ export async function sendLeadToSalesforce(
 
   return { leadId };
 }
+
