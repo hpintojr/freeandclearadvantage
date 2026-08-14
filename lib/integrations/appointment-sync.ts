@@ -16,6 +16,9 @@ import {
 } from "./salesforce";
 
 const APPOINTMENT_MARKER = /\[GHL:([^\]]+)\]/;
+// GHL rejects any assignee other than the owner of a personal calendar. Matched
+// so the expected pre-cutover rejection can be separated from real failures.
+const CALENDAR_TEAM_REJECTION = /not part of calendar team/i;
 const CANCELLED_STATUSES = new Set(["cancelled", "canceled"]);
 const OVERDUE_MARKER = "[FCA:OVERDUE_QUEUED]";
 const APPOINTMENT_STATUS = "application pending";
@@ -61,6 +64,7 @@ export async function syncAppointments() {
     overdueEligible: 0,
     overdueQueued: 0,
     overdueSkippedNoWorkflow: 0,
+    assignmentBlocked: [] as string[],
     errors: [] as string[],
   };
 
@@ -90,7 +94,7 @@ export async function syncAppointments() {
       const ghlUser = users.find(
         (user) => user.email?.trim().toLowerCase() === event.Owner?.Email?.trim().toLowerCase(),
       );
-      const ghlChanges: Record<string, string> = {};
+      const timeChanges: Record<string, string> = {};
 
       const timesDiffer =
         !sameInstant(event.StartDateTime, appointment.startTime) ||
@@ -98,8 +102,8 @@ export async function syncAppointments() {
       if (timesDiffer) {
         const salesforceIsNewer = time(event.LastModifiedDate) >= appointmentUpdatedAt(appointment);
         if (salesforceIsNewer && event.StartDateTime && event.EndDateTime) {
-          ghlChanges.startTime = event.StartDateTime;
-          ghlChanges.endTime = event.EndDateTime;
+          timeChanges.startTime = event.StartDateTime;
+          timeChanges.endTime = event.EndDateTime;
         } else if (appointment.startTime && appointment.endTime) {
           await updateSalesforceAppointmentEvent(event.Id, {
             StartDateTime: appointment.startTime,
@@ -109,18 +113,42 @@ export async function syncAppointments() {
         }
       }
 
+      if (Object.keys(timeChanges).length) {
+        await updateGhlAppointment(appointmentId, timeChanges);
+        results.updatedGhl += 1;
+      }
+
       // The manager hands an appointment off by reassigning the Salesforce
       // Event. Push that owner onto the GHL appointment itself, not just the
       // opportunity — otherwise the appointment stays with the manager forever
       // and any workflow keyed on its assigned user never fires, so the agent
       // is never notified.
+      //
+      // This is a SEPARATE call from the reschedule above, and its failure is
+      // caught rather than allowed to escape. The booking calendar is personal
+      // to one user, so GHL answers 422 "The user id not part of calendar team"
+      // for every other assignee, on every run. When that rejection was allowed
+      // to propagate it aborted the whole iteration, so the opportunity
+      // assignment and the overdue-call path below — the parts that do reach the
+      // agent — silently stopped running for any appointment awaiting handoff.
+      // Bundling assignment into the same PUT as a reschedule also meant one
+      // rejected assignee discarded a legitimate time change.
       if (ghlUser?.id && ghlUser.id !== appointment.assignedUserId) {
-        ghlChanges.assignedUserId = ghlUser.id;
-      }
-
-      if (Object.keys(ghlChanges).length) {
-        await updateGhlAppointment(appointmentId, ghlChanges);
-        results.updatedGhl += 1;
+        try {
+          await updateGhlAppointment(appointmentId, { assignedUserId: ghlUser.id });
+          results.updatedGhl += 1;
+        } catch (assignmentError) {
+          const message =
+            assignmentError instanceof Error ? assignmentError.message : "Unknown assignment error";
+          if (CALENDAR_TEAM_REJECTION.test(message)) {
+            // Expected until the booking calendar is replaced with a team
+            // calendar. Reported separately so it stays visible without
+            // masquerading as a new failure every minute.
+            results.assignmentBlocked.push(`${appointmentId}: ${message}`);
+          } else {
+            results.errors.push(`${appointmentId}: appointment assignment failed: ${message}`);
+          }
+        }
       }
 
       let opportunity = await updateAppointmentOpportunity(appointmentId, appointment.contactId, {

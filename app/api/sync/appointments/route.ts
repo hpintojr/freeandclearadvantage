@@ -29,6 +29,16 @@ export async function GET(request: Request) {
         JSON.stringify({ appointments: appointments.errors, dnc: dnc.errors }),
       );
     }
+    if (appointments.assignmentBlocked.length) {
+      // Warn, not error: this is the known personal-calendar rejection, which
+      // repeats every run until the booking calendar is replaced with a team
+      // calendar. It stays logged so the backlog is visible, but it no longer
+      // drowns out real failures or marks an otherwise-healthy run as failed.
+      console.warn(
+        "appointment assignment blocked by calendar configuration",
+        JSON.stringify({ appointments: appointments.assignmentBlocked }),
+      );
+    }
     return NextResponse.json({ ok, appointments, dnc }, { status: ok ? 200 : 207 });
   } catch (error) {
     console.error("appointment sync failed", error);
